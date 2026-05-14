@@ -1,5 +1,6 @@
 const express = require('express')
 const fs = require('fs')
+const path = require('path')
 const config = require('./config')
 const { createCorsMiddleware } = require('./middleware/cors')
 const { createDownloadManager } = require('./services/downloadManager')
@@ -15,10 +16,13 @@ const downloadManager = createDownloadManager(config, tools)
 
 function createApp() {
   const app = express()
+  const indexFile = path.join(config.publicDir, 'index.html')
 
   app.use(express.json({ limit: '32kb' }))
   app.use(createCorsMiddleware(config.allowedOrigins))
-  app.use(express.static(config.publicDir))
+
+  console.log(`[routes] static directory: ${config.publicDir}`)
+  console.log(`[routes] index file: ${indexFile} (${fs.existsSync(indexFile) ? 'found' : 'missing'})`)
 
   app.get('/health', (req, res) => {
     res.json({
@@ -27,6 +31,7 @@ function createApp() {
       activeJobs: downloadManager.activeJobCount()
     })
   })
+  console.log('[routes] GET /health')
 
   app.post('/api/download', (req, res) => {
     const { url, format = 'video', quality = 'best' } = req.body
@@ -41,6 +46,7 @@ function createApp() {
       res.status(err.statusCode || 500).json({ error: err.message || 'Không tạo được job tải xuống.' })
     }
   })
+  console.log('[routes] POST /api/download')
 
   app.get('/api/download/:jobId/status', (req, res) => {
     const job = downloadManager.getJob(req.params.jobId)
@@ -53,6 +59,7 @@ function createApp() {
       error: job.error
     })
   })
+  console.log('[routes] GET /api/download/:jobId/status')
 
   app.get('/api/download/:jobId/file', (req, res) => {
     const job = downloadManager.getJob(req.params.jobId)
@@ -71,6 +78,23 @@ function createApp() {
       downloadManager.removeJob(req.params.jobId)
     })
     stream.on('error', () => res.status(500).end())
+  })
+  console.log('[routes] GET /api/download/:jobId/file')
+
+  app.get('/', (req, res) => {
+    res.sendFile(indexFile)
+  })
+  console.log('[routes] GET /')
+
+  app.use(express.static(config.publicDir, { index: false }))
+  console.log('[routes] static assets mounted at /')
+
+  // Keep future frontend-only pages working without intercepting API routes.
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api/') && req.accepts('html')) {
+      return res.sendFile(indexFile)
+    }
+    next()
   })
 
   return app

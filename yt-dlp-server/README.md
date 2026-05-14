@@ -65,6 +65,24 @@ Open locally from the server:
 http://127.0.0.1:3001
 ```
 
+## Curl Tests
+
+These commands should work on the Ubuntu server after the container starts:
+
+```bash
+curl -i http://localhost:3001
+curl -I http://localhost:3001/styles.css
+curl -I http://localhost:3001/app.js
+curl -s http://localhost:3001/health
+```
+
+Expected behavior:
+
+- `curl -i http://localhost:3001` returns `HTTP/1.1 200 OK` and the `public/index.html` document.
+- `styles.css` returns `Content-Type: text/css`.
+- `app.js` returns `Content-Type: text/javascript`.
+- `/health` returns JSON with `tools.ytdlp` and `tools.ffmpeg`.
+
 ## Persistent Downloads
 
 Downloads are stored in:
