@@ -1,0 +1,31 @@
+services:
+  yt-dlp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: heymedia-yt-dlp-server
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3001}
+      HOST: 0.0.0.0
+      DOWNLOAD_DIR: /downloads
+      MAX_ACTIVE_JOBS: ${MAX_ACTIVE_JOBS:-3}
+      JOB_TIMEOUT_MS: ${JOB_TIMEOUT_MS:-600000}
+      JOB_TTL_MS: ${JOB_TTL_MS:-3600000}
+      YTDLP_BIN: /usr/local/bin/yt-dlp
+      FFMPEG_BIN: /usr/bin/ffmpeg
+      YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-}
+      YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
+    ports:
+      - "127.0.0.1:${PORT:-3001}:3001"
+    volumes:
+      - ./downloads:/downloads
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
