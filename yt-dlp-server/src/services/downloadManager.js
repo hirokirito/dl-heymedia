@@ -589,6 +589,15 @@ function extractJsonBlobs(html) {
     }
   }
 
+  const universalData = html.match(/<script[^>]+id=["']__UNIVERSAL_DATA_FOR_REHYDRATION__["'][^>]*>([^<]+)<\/script>/)
+  if (universalData) {
+    try {
+      blobs.push(JSON.parse(universalData[1]))
+    } catch (err) {
+      console.warn('douyin fallback UNIVERSAL_DATA skipped:', err.message)
+    }
+  }
+
   return blobs
 }
 
@@ -616,14 +625,15 @@ function extractDouyinUrlsFromJson(data) {
     if (typeof value !== 'object') return
 
     const playContext = inPlayContext || isPlayAddressKey(key)
-    if (playContext && Array.isArray(value.url_list)) {
-      for (const url of value.url_list) visit(url, key, true)
+    for (const urlListKey of ['url_list', 'urlList', 'UrlList', 'URLList']) {
+      if (playContext && Array.isArray(value[urlListKey])) {
+        for (const url of value[urlListKey]) visit(url, key, true)
+      }
     }
-    if (playContext && Array.isArray(value.urlList)) {
-      for (const url of value.urlList) visit(url, key, true)
-    }
-    if (playContext && typeof value.src === 'string') {
-      visit(value.src, key, true)
+    for (const srcKey of ['src', 'Src', 'url', 'Url', 'download', 'Download']) {
+      if (playContext && typeof value[srcKey] === 'string') {
+        visit(value[srcKey], key, true)
+      }
     }
 
     for (const [childKey, childValue] of Object.entries(value)) {
@@ -636,7 +646,7 @@ function extractDouyinUrlsFromJson(data) {
 }
 
 function isPlayAddressKey(key) {
-  return /play[_-]?addr|playaddr|download[_-]?addr|bit[_-]?rate|video[_-]?play/i.test(key)
+  return /play[_-]?addr|playaddr|download[_-]?addr|bit[_-]?rate|bitrate|video[_-]?play|video[_-]?url/i.test(key)
 }
 
 function looksLikeDouyinMediaUrl(url) {

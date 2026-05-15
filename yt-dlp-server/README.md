@@ -218,3 +218,11 @@ docker compose up -d
 ```
 
 When `yt-dlp` returns Douyin `Fresh cookies` or JSON parsing errors, the server retries video downloads with a custom Douyin fallback that reads the logged-in cookie file, resolves the share URL, extracts a playable video URL from Douyin page data, and streams the MP4 directly.
+
+On direct PM2/Ubuntu deployments, install `curl_cffi` for better `yt-dlp` browser impersonation support:
+
+```bash
+python3 -m pip install -U --break-system-packages curl_cffi
+```
+
+Then confirm `yt-dlp -v` shows `curl_cffi` under optional libraries before retrying Douyin.
