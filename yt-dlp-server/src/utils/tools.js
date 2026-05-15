@@ -11,6 +11,11 @@ function commandExists(command) {
   }
 }
 
+function resolveCommand(candidates) {
+  return candidates.find(commandExists) || candidates[0]
+}
+
 module.exports = {
-  commandExists
+  commandExists,
+  resolveCommand
 }
