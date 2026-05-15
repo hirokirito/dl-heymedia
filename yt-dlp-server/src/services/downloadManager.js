@@ -265,8 +265,8 @@ function createDownloadManager(config, tools) {
     job.proc = null
 
     try {
-      const mediaUrl = await resolveDouyinMediaUrl(fallback.url)
-      await downloadDouyinMedia(jobId, mediaUrl, fallback.outputPath)
+      const candidates = await resolveDouyinMediaCandidates(fallback.url)
+      await downloadFirstValidDouyinMedia(jobId, candidates, fallback.outputPath)
       completeJob(jobId)
     } catch (err) {
       const currentJob = jobs.get(jobId)
@@ -279,7 +279,7 @@ function createDownloadManager(config, tools) {
     }
   }
 
-  async function resolveDouyinMediaUrl(url) {
+  async function resolveDouyinMediaCandidates(url) {
     const cookie = readCookieHeader()
     const pageResponse = await fetch(url, {
       redirect: 'follow',
@@ -294,12 +294,12 @@ function createDownloadManager(config, tools) {
       ...await fetchDouyinApiCandidates(videoId, cookie)
     ]
 
-    const mediaUrl = candidates
+    const mediaUrls = candidates
       .map(normalizeDouyinMediaUrl)
-      .find(Boolean)
+      .filter(Boolean)
 
-    if (!mediaUrl) throw new Error('không tìm thấy video URL trong dữ liệu Douyin')
-    return mediaUrl
+    if (!mediaUrls.length) throw new Error('không tìm thấy video URL trong dữ liệu Douyin')
+    return [...new Set(mediaUrls)]
   }
 
   async function fetchDouyinApiCandidates(videoId, cookie) {
@@ -327,6 +327,23 @@ function createDownloadManager(config, tools) {
     return candidates
   }
 
+  async function downloadFirstValidDouyinMedia(jobId, mediaUrls, outputPath) {
+    const errors = []
+
+    for (const mediaUrl of mediaUrls) {
+      try {
+        await downloadDouyinMedia(jobId, mediaUrl, outputPath)
+        return
+      } catch (err) {
+        fs.unlink(outputPath, () => {})
+        errors.push(err.message)
+        console.warn('douyin fallback media candidate skipped:', err.message)
+      }
+    }
+
+    throw new Error(errors[0] || 'không tìm thấy media hợp lệ')
+  }
+
   async function downloadDouyinMedia(jobId, mediaUrl, outputPath) {
     const response = await fetch(mediaUrl, {
       redirect: 'follow',
@@ -337,7 +354,12 @@ function createDownloadManager(config, tools) {
       throw new Error(`CDN trả về HTTP ${response.status}`)
     }
 
+    const contentType = response.headers.get('content-type') || ''
     const total = Number(response.headers.get('content-length') || 0)
+    if (!looksLikeVideoResponse(contentType, total)) {
+      throw new Error(`candidate không phải video (${contentType || 'unknown'}, ${total || 'unknown'} bytes)`)
+    }
+
     let downloaded = 0
     const progress = new TransformStream({
       transform(chunk, controller) {
@@ -354,6 +376,19 @@ function createDownloadManager(config, tools) {
       Readable.fromWeb(response.body.pipeThrough(progress)),
       fs.createWriteStream(outputPath)
     )
+
+    const size = fs.statSync(outputPath).size
+    if (size < 100 * 1024) {
+      throw new Error(`file tải về quá nhỏ (${size} bytes)`)
+    }
+  }
+
+  function looksLikeVideoResponse(contentType, total) {
+    const type = contentType.toLowerCase()
+
+    if (type.startsWith('video/') || type.includes('octet-stream')) return true
+    if (total >= 1024 * 1024 && !type.includes('text/html') && !type.includes('application/json')) return true
+    return false
   }
 
   function readCookieHeader() {
