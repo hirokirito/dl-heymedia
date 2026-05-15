@@ -1,14 +1,18 @@
 const { execSync } = require('child_process')
 
 function commandExists(command) {
-  try {
-    execSync(`${command} --version`, {
-      stdio: 'ignore'
-    })
-    return true
-  } catch {
-    return false
+  for (const versionFlag of ['--version', '-version']) {
+    try {
+      execSync(`${command} ${versionFlag}`, {
+        stdio: 'ignore'
+      })
+      return true
+    } catch {
+      // Try the next common version flag.
+    }
   }
+
+  return false
 }
 
 function resolveCommand(candidates) {
