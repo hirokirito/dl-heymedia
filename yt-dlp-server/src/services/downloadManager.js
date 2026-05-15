@@ -270,7 +270,10 @@ function createDownloadManager(config, tools) {
 
     try {
       const candidates = await resolveDouyinMediaCandidates(fallback.url)
-      await downloadFirstValidDouyinMedia(jobId, candidates, fallback.outputPath)
+      const browserCandidates = candidates.length
+        ? []
+        : await resolveDouyinBrowserCandidates(fallback.url)
+      await downloadFirstValidDouyinMedia(jobId, [...candidates, ...browserCandidates], fallback.outputPath)
       completeJob(jobId)
     } catch (err) {
       const currentJob = jobs.get(jobId)
@@ -304,6 +307,65 @@ function createDownloadManager(config, tools) {
 
     console.warn(`douyin fallback found ${mediaUrls.length} candidate(s) for ${videoId || finalUrl}`)
     if (!mediaUrls.length) throw new Error('không tìm thấy video URL trong dữ liệu Douyin')
+    return [...new Set(mediaUrls)]
+  }
+
+  async function resolveDouyinBrowserCandidates(url) {
+    if (!config.douyinBrowserFallback) return []
+
+    let chromium
+    try {
+      chromium = require('playwright').chromium
+    } catch {
+      throw new Error('không tìm thấy video URL trong dữ liệu Douyin; cài playwright và bật DOUYIN_BROWSER_FALLBACK=1 để dùng browser fallback')
+    }
+
+    const candidates = []
+    const browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-dev-shm-usage']
+    })
+
+    try {
+      const context = await browser.newContext({
+        userAgent: DOUYIN_USER_AGENT,
+        viewport: { width: 1365, height: 768 },
+        locale: 'zh-CN'
+      })
+      const cookies = readPlaywrightCookies()
+      if (cookies.length) await context.addCookies(cookies)
+
+      const page = await context.newPage()
+      page.on('response', response => {
+        const responseUrl = response.url()
+        const contentType = response.headers()['content-type'] || ''
+        if (looksLikeDouyinMediaUrl(responseUrl) || contentType.startsWith('video/')) {
+          candidates.push(responseUrl)
+        }
+      })
+
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
+      await page.waitForTimeout(8000)
+
+      candidates.push(...await page.evaluate(() => {
+        const urls = []
+        for (const video of document.querySelectorAll('video')) {
+          if (video.currentSrc) urls.push(video.currentSrc)
+          if (video.src) urls.push(video.src)
+        }
+        for (const entry of performance.getEntriesByType('resource')) {
+          if (/video|play|tos-cn|douyin|byte|douyinvod/i.test(entry.name)) urls.push(entry.name)
+        }
+        return urls
+      }))
+    } finally {
+      await browser.close()
+    }
+
+    const mediaUrls = prioritizeDouyinCandidates(candidates)
+      .map(normalizeDouyinMediaUrl)
+      .filter(Boolean)
+    console.warn(`douyin browser fallback found ${mediaUrls.length} candidate(s)`)
     return [...new Set(mediaUrls)]
   }
 
@@ -417,6 +479,25 @@ function createDownloadManager(config, tools) {
       .filter(parts => parts.length >= 7)
       .map(parts => `${parts[5]}=${parts.slice(6).join('\t')}`)
       .join('; ')
+  }
+
+  function readPlaywrightCookies() {
+    if (!tools.cookiesFile) return []
+
+    return fs.readFileSync(config.ytdlpCookiesFile, 'utf8')
+      .split(/\r?\n/)
+      .map(line => line.startsWith('#HttpOnly_') ? line.slice('#HttpOnly_'.length) : line)
+      .filter(line => line && !line.startsWith('#'))
+      .map(line => line.split('\t'))
+      .filter(parts => parts.length >= 7)
+      .map(parts => ({
+        domain: parts[0],
+        path: parts[2] || '/',
+        secure: parts[3] === 'TRUE',
+        expires: Number(parts[4]) || -1,
+        name: parts[5],
+        value: parts.slice(6).join('\t')
+      }))
   }
 
   function buildDouyinHeaders(cookie, referer = 'https://www.douyin.com/') {

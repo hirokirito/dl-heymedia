@@ -11,7 +11,8 @@ const tools = {
   ytdlp: commandExists(config.ytdlpBin),
   ffmpeg: commandExists(config.ffmpegBin),
   jsRuntime: commandExists(config.ytdlpJsRuntime),
-  cookiesFile: Boolean(config.ytdlpCookiesFile && fs.existsSync(config.ytdlpCookiesFile))
+  cookiesFile: Boolean(config.ytdlpCookiesFile && fs.existsSync(config.ytdlpCookiesFile)),
+  douyinBrowserFallback: config.douyinBrowserFallback
 }
 console.log('[tools]', tools)
 if (config.ytdlpCookiesFile && !tools.cookiesFile) {

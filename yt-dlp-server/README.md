@@ -227,3 +227,17 @@ python3 -m pip install -U --break-system-packages 'curl_cffi==0.13.0'
 ```
 
 Then confirm `yt-dlp -v` shows `curl_cffi` under request handlers before retrying Douyin. If `yt-dlp -v` marks it as `unsupported`, downgrade to a supported version.
+
+If Douyin still serves empty page/API data, enable the optional browser fallback. It uses headless Chromium via Playwright, imports the same cookies.txt file, opens the Douyin page, watches video network requests, and downloads the captured media URL:
+
+```bash
+cd /home/heymedia/yt-dlp-server/yt-dlp-server
+npm install playwright
+npx playwright install chromium
+```
+
+Then restart PM2 with:
+
+```bash
+DOUYIN_BROWSER_FALLBACK=1
+```
