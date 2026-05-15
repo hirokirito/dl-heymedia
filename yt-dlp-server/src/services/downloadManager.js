@@ -289,15 +289,16 @@ function createDownloadManager(config, tools) {
     const finalUrl = pageResponse.url || url
     const videoId = extractDouyinVideoId(finalUrl, html)
 
-    const candidates = [
+    const candidates = prioritizeDouyinCandidates([
       ...extractDouyinUrlsFromHtml(html),
       ...await fetchDouyinApiCandidates(videoId, cookie)
-    ]
+    ])
 
     const mediaUrls = candidates
       .map(normalizeDouyinMediaUrl)
       .filter(Boolean)
 
+    console.warn(`douyin fallback found ${mediaUrls.length} candidate(s) for ${videoId || finalUrl}`)
     if (!mediaUrls.length) throw new Error('không tìm thấy video URL trong dữ liệu Douyin')
     return [...new Set(mediaUrls)]
   }
@@ -345,19 +346,20 @@ function createDownloadManager(config, tools) {
   }
 
   async function downloadDouyinMedia(jobId, mediaUrl, outputPath) {
+    const urlLabel = describeUrl(mediaUrl)
     const response = await fetch(mediaUrl, {
       redirect: 'follow',
       headers: buildDouyinHeaders(readCookieHeader())
     })
 
     if (!response.ok || !response.body) {
-      throw new Error(`CDN trả về HTTP ${response.status}`)
+      throw new Error(`${urlLabel} trả về HTTP ${response.status}`)
     }
 
     const contentType = response.headers.get('content-type') || ''
     const total = Number(response.headers.get('content-length') || 0)
     if (!looksLikeVideoResponse(contentType, total)) {
-      throw new Error(`candidate không phải video (${contentType || 'unknown'}, ${total || 'unknown'} bytes)`)
+      throw new Error(`${urlLabel} không phải video (${contentType || 'unknown'}, ${total || 'unknown'} bytes)`)
     }
 
     let downloaded = 0
@@ -379,7 +381,7 @@ function createDownloadManager(config, tools) {
 
     const size = fs.statSync(outputPath).size
     if (size < 100 * 1024) {
-      throw new Error(`file tải về quá nhỏ (${size} bytes)`)
+      throw new Error(`${urlLabel} tải về quá nhỏ (${size} bytes)`)
     }
   }
 
@@ -389,6 +391,15 @@ function createDownloadManager(config, tools) {
     if (type.startsWith('video/') || type.includes('octet-stream')) return true
     if (total >= 1024 * 1024 && !type.includes('text/html') && !type.includes('application/json')) return true
     return false
+  }
+
+  function describeUrl(url) {
+    try {
+      const parsed = new URL(url)
+      return `${parsed.hostname}${parsed.pathname.slice(0, 80)}`
+    } catch {
+      return 'candidate'
+    }
   }
 
   function readCookieHeader() {
@@ -546,11 +557,6 @@ function extractDouyinUrlsFromHtml(html) {
     candidates.push(...extractDouyinUrlsFromJson(data))
   }
 
-  const escapedUrlPattern = /https?:\\?\/\\?\/[^"']+(?:play|playwm|douyin|byte)[^"']+/g
-  for (const match of html.matchAll(escapedUrlPattern)) {
-    candidates.push(unescapeJsonString(match[0]))
-  }
-
   return candidates
 }
 
@@ -565,7 +571,7 @@ function extractJsonBlobs(html) {
     }
   }
 
-  const routerData = html.match(/window\._ROUTER_DATA\s*=\s*({.+?})\s*<\/script>/s)
+  const routerData = html.match(/window\._ROUTER_DATA\s*=\s*({.+?})\s*;?\s*<\/script>/s)
   if (routerData) {
     try {
       blobs.push(JSON.parse(routerData[1]))
@@ -590,12 +596,12 @@ function extractDouyinUrlsFromJson(data) {
   const urls = []
   const seen = new Set()
 
-  function visit(value, key = '') {
+  function visit(value, key = '', inPlayContext = false) {
     if (!value) return
 
     if (typeof value === 'string') {
       const normalized = unescapeJsonString(value)
-      if (looksLikeDouyinMediaUrl(normalized) && !seen.has(normalized)) {
+      if (inPlayContext && looksLikeDouyinMediaUrl(normalized) && !seen.has(normalized)) {
         seen.add(normalized)
         urls.push(normalized)
       }
@@ -603,24 +609,25 @@ function extractDouyinUrlsFromJson(data) {
     }
 
     if (Array.isArray(value)) {
-      for (const item of value) visit(item, key)
+      for (const item of value) visit(item, key, inPlayContext)
       return
     }
 
     if (typeof value !== 'object') return
 
-    if (isPlayAddressKey(key) && Array.isArray(value.url_list)) {
-      for (const url of value.url_list) visit(url, key)
+    const playContext = inPlayContext || isPlayAddressKey(key)
+    if (playContext && Array.isArray(value.url_list)) {
+      for (const url of value.url_list) visit(url, key, true)
     }
-    if (isPlayAddressKey(key) && Array.isArray(value.urlList)) {
-      for (const url of value.urlList) visit(url, key)
+    if (playContext && Array.isArray(value.urlList)) {
+      for (const url of value.urlList) visit(url, key, true)
     }
-    if (isPlayAddressKey(key) && typeof value.src === 'string') {
-      visit(value.src, key)
+    if (playContext && typeof value.src === 'string') {
+      visit(value.src, key, true)
     }
 
     for (const [childKey, childValue] of Object.entries(value)) {
-      visit(childValue, childKey)
+      visit(childValue, childKey, playContext)
     }
   }
 
@@ -629,13 +636,29 @@ function extractDouyinUrlsFromJson(data) {
 }
 
 function isPlayAddressKey(key) {
-  return /play[_-]?addr|playaddr|download|video/i.test(key)
+  return /play[_-]?addr|playaddr|download[_-]?addr|bit[_-]?rate|video[_-]?play/i.test(key)
 }
 
 function looksLikeDouyinMediaUrl(url) {
   return /^https?:\/\//.test(url)
-    && /(aweme|douyin|byte|snssdk|ixigua|tos-cn)/i.test(url)
-    && /(play|mime_type=video|video_id|\.mp4|tos-cn)/i.test(url)
+    && !/\.(js|css|svg|png|jpe?g|webp|gif)(?:[?#]|$)/i.test(url)
+    && /(aweme|douyin|byte|snssdk|ixigua|tos-cn|douyinvod)/i.test(url)
+    && /(play|mime_type=video|video_id|\.mp4|tos-cn|douyinvod)/i.test(url)
+}
+
+function prioritizeDouyinCandidates(urls) {
+  return [...new Set(urls)]
+    .sort((a, b) => scoreDouyinCandidate(b) - scoreDouyinCandidate(a))
+}
+
+function scoreDouyinCandidate(url) {
+  let score = 0
+  if (/playaddr|play_addr|play\//i.test(url)) score += 40
+  if (/douyinvod|bytev|tos-cn/i.test(url)) score += 30
+  if (/mime_type=video|\.mp4/i.test(url)) score += 20
+  if (/playwm/i.test(url)) score -= 10
+  if (/\.(js|css|svg|png|jpe?g|webp|gif)(?:[?#]|$)/i.test(url)) score -= 100
+  return score
 }
 
 function normalizeDouyinMediaUrl(url) {
