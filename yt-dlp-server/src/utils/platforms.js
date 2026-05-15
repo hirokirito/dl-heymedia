@@ -2,7 +2,6 @@ const ALLOWED_HOSTS = [
   'tiktok.com', 'vm.tiktok.com',
   'youtube.com', 'youtu.be', 'www.youtube.com', 'm.youtube.com',
   'facebook.com', 'fb.watch', 'www.facebook.com',
-  'douyin.com', 'www.douyin.com',
   'instagram.com', 'www.instagram.com'
 ]
 
