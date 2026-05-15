@@ -2,7 +2,7 @@ const { randomUUID } = require('crypto')
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const { isYouTubeUrl } = require('../utils/platforms')
+const { isDouyinUrl, isYouTubeUrl } = require('../utils/platforms')
 
 function createDownloadManager(config, tools) {
   fs.mkdirSync(config.downloadDir, { recursive: true })
@@ -64,6 +64,8 @@ function createDownloadManager(config, tools) {
     ]
 
     addJsRuntime(args)
+    addCookiesFile(args)
+    addPlatformHeaders(args, url)
 
     if (format === 'audio') {
       if (tools.ffmpeg) args.push('--ffmpeg-location', config.ffmpegBin)
@@ -101,6 +103,19 @@ function createDownloadManager(config, tools) {
 
   function addJsRuntime(args) {
     if (tools.jsRuntime) args.push('--js-runtimes', config.ytdlpJsRuntime)
+  }
+
+  function addCookiesFile(args) {
+    if (tools.cookiesFile) args.push('--cookies', config.ytdlpCookiesFile)
+  }
+
+  function addPlatformHeaders(args, url) {
+    if (!isDouyinUrl(url)) return
+
+    args.push(
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+      '--add-header', 'Referer:https://www.douyin.com/'
+    )
   }
 
   function removeFormatArgs(args) {

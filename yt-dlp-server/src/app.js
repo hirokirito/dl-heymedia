@@ -10,9 +10,13 @@ const { commandExists } = require('./utils/tools')
 const tools = {
   ytdlp: commandExists(config.ytdlpBin),
   ffmpeg: commandExists(config.ffmpegBin),
-  jsRuntime: commandExists(config.ytdlpJsRuntime)
+  jsRuntime: commandExists(config.ytdlpJsRuntime),
+  cookiesFile: Boolean(config.ytdlpCookiesFile && fs.existsSync(config.ytdlpCookiesFile))
 }
 console.log('[tools]', tools)
+if (config.ytdlpCookiesFile && !tools.cookiesFile) {
+  console.warn(`[tools] YTDLP_COOKIES_FILE not found: ${config.ytdlpCookiesFile}`)
+}
 
 const downloadManager = createDownloadManager(config, tools)
 

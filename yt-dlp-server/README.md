@@ -172,8 +172,43 @@ If YouTube starts returning PO-token or 403 errors, update `yt-dlp` first by reb
 
 ```env
 YTDLP_JS_RUNTIME=/usr/local/bin/deno
+YTDLP_COOKIES_FILE=/home/heymedia/yt-dlp-server/yt-dlp-server/cookies/douyin-cookies.txt
 YOUTUBE_PLAYER_CLIENT=mweb
 YOUTUBE_PO_TOKEN=mweb.gvs+TOKEN_VALUE
+```
+
+Then restart:
+
+```bash
+docker compose up -d
+```
+
+## Douyin Cookies
+
+Douyin videos that require login need browser cookies. Export cookies from the logged-in browser in Netscape cookies.txt format, then copy them to the server:
+
+```bash
+mkdir -p /home/heymedia/yt-dlp-server/yt-dlp-server/cookies
+chmod 700 /home/heymedia/yt-dlp-server/yt-dlp-server/cookies
+```
+
+Save the exported file as:
+
+```text
+/home/heymedia/yt-dlp-server/yt-dlp-server/cookies/douyin-cookies.txt
+```
+
+For PM2 deployments, set:
+
+```bash
+cd /home/heymedia/yt-dlp-server/yt-dlp-server
+YTDLP_COOKIES_FILE=/home/heymedia/yt-dlp-server/yt-dlp-server/cookies/douyin-cookies.txt pm2 restart heymedia-downloader --update-env
+```
+
+For Docker deployments, set this in `.env`:
+
+```env
+YTDLP_COOKIES_FILE=/cookies/douyin-cookies.txt
 ```
 
 Then restart:

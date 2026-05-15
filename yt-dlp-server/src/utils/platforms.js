@@ -7,6 +7,7 @@ const ALLOWED_HOSTS = [
 ]
 
 const YOUTUBE_HOSTS = ['youtube.com', 'youtu.be', 'www.youtube.com', 'm.youtube.com']
+const DOUYIN_HOSTS = ['douyin.com', 'www.douyin.com', 'v.douyin.com']
 
 function matchesHost(hostname, allowedHost) {
   return hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)
@@ -30,7 +31,17 @@ function isYouTubeUrl(url) {
   }
 }
 
+function isDouyinUrl(url) {
+  try {
+    const { hostname } = new URL(url)
+    return DOUYIN_HOSTS.some(host => matchesHost(hostname, host))
+  } catch {
+    return false
+  }
+}
+
 module.exports = {
   isAllowedMediaUrl,
+  isDouyinUrl,
   isYouTubeUrl
 }

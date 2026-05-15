@@ -16,12 +16,14 @@ services:
       JOB_TTL_MS: ${JOB_TTL_MS:-3600000}
       YTDLP_BIN: /usr/local/bin/yt-dlp
       FFMPEG_BIN: /usr/bin/ffmpeg
+      YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
       YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-}
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
     ports:
       - "127.0.0.1:${PORT:-3001}:3001"
     volumes:
       - ./downloads:/downloads
+      - ./cookies:/cookies:ro
     security_opt:
       - no-new-privileges:true
     logging:
