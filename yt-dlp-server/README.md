@@ -216,3 +216,5 @@ Then restart:
 ```bash
 docker compose up -d
 ```
+
+When `yt-dlp` returns Douyin `Fresh cookies` or JSON parsing errors, the server retries video downloads with a custom Douyin fallback that reads the logged-in cookie file, resolves the share URL, extracts a playable video URL from Douyin page data, and streams the MP4 directly.

@@ -2,7 +2,11 @@ const { randomUUID } = require('crypto')
 const { spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { Readable } = require('stream')
+const { pipeline } = require('stream/promises')
 const { isDouyinUrl, isYouTubeUrl } = require('../utils/platforms')
+
+const DOUYIN_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 function createDownloadManager(config, tools) {
   fs.mkdirSync(config.downloadDir, { recursive: true })
@@ -33,6 +37,9 @@ function createDownloadManager(config, tools) {
       filepath: null,
       filename: null,
       fallbackArgs,
+      douyinFallback: isDouyinUrl(url) && format !== 'audio'
+        ? { url, outputPath: path.join(config.downloadDir, `${jobId}.mp4`) }
+        : null,
       usedFallback: false,
       startTime: Date.now()
     })
@@ -113,7 +120,7 @@ function createDownloadManager(config, tools) {
     if (!isDouyinUrl(url)) return
 
     args.push(
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+      '--user-agent', DOUYIN_USER_AGENT,
       '--add-header', 'Referer:https://www.douyin.com/'
     )
   }
@@ -219,6 +226,15 @@ function createDownloadManager(config, tools) {
 
       if (code === 0) return completeJob(jobId)
 
+      if (!timedOut && currentJob.douyinFallback && !currentJob.usedFallback && shouldUseDouyinFallback(stderrBuf)) {
+        currentJob.usedFallback = true
+        currentJob.progress = 0
+        cleanupJobFiles(jobId)
+        console.warn('yt-dlp retrying with custom Douyin fallback:', stderrBuf.slice(-300))
+        runDouyinFallbackJob(jobId, currentJob.douyinFallback)
+        return
+      }
+
       if (!timedOut && currentJob.fallbackArgs && !currentJob.usedFallback && shouldUseYouTubeFallback(stderrBuf)) {
         currentJob.usedFallback = true
         currentJob.progress = 0
@@ -239,6 +255,129 @@ function createDownloadManager(config, tools) {
       cleanupJobFiles(jobId)
       console.error('yt-dlp error:', stderrBuf.slice(-500))
     })
+  }
+
+  async function runDouyinFallbackJob(jobId, fallback) {
+    const job = jobs.get(jobId)
+    if (!job) return
+
+    job.status = 'downloading'
+    job.proc = null
+
+    try {
+      const mediaUrl = await resolveDouyinMediaUrl(fallback.url)
+      await downloadDouyinMedia(jobId, mediaUrl, fallback.outputPath)
+      completeJob(jobId)
+    } catch (err) {
+      const currentJob = jobs.get(jobId)
+      if (!currentJob) return
+
+      currentJob.status = 'error'
+      currentJob.error = `Douyin fallback không tải được: ${err.message}`
+      cleanupJobFiles(jobId)
+      console.error('douyin fallback error:', err.message)
+    }
+  }
+
+  async function resolveDouyinMediaUrl(url) {
+    const cookie = readCookieHeader()
+    const pageResponse = await fetch(url, {
+      redirect: 'follow',
+      headers: buildDouyinHeaders(cookie)
+    })
+    const html = await pageResponse.text()
+    const finalUrl = pageResponse.url || url
+    const videoId = extractDouyinVideoId(finalUrl, html)
+
+    const candidates = [
+      ...extractDouyinUrlsFromHtml(html),
+      ...await fetchDouyinApiCandidates(videoId, cookie)
+    ]
+
+    const mediaUrl = candidates
+      .map(normalizeDouyinMediaUrl)
+      .find(Boolean)
+
+    if (!mediaUrl) throw new Error('không tìm thấy video URL trong dữ liệu Douyin')
+    return mediaUrl
+  }
+
+  async function fetchDouyinApiCandidates(videoId, cookie) {
+    if (!videoId) return []
+
+    const apiUrls = [
+      `https://www.douyin.com/aweme/v1/web/aweme/detail/?aweme_id=${videoId}&aid=1128&device_platform=webapp`,
+      `https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids=${videoId}`
+    ]
+    const candidates = []
+
+    for (const apiUrl of apiUrls) {
+      try {
+        const response = await fetch(apiUrl, {
+          headers: buildDouyinHeaders(cookie, `https://www.douyin.com/video/${videoId}`)
+        })
+        const text = await response.text()
+        if (!text.trim().startsWith('{')) continue
+        candidates.push(...extractDouyinUrlsFromJson(JSON.parse(text)))
+      } catch (err) {
+        console.warn('douyin fallback API skipped:', err.message)
+      }
+    }
+
+    return candidates
+  }
+
+  async function downloadDouyinMedia(jobId, mediaUrl, outputPath) {
+    const response = await fetch(mediaUrl, {
+      redirect: 'follow',
+      headers: buildDouyinHeaders(readCookieHeader())
+    })
+
+    if (!response.ok || !response.body) {
+      throw new Error(`CDN trả về HTTP ${response.status}`)
+    }
+
+    const total = Number(response.headers.get('content-length') || 0)
+    let downloaded = 0
+    const progress = new TransformStream({
+      transform(chunk, controller) {
+        downloaded += chunk.byteLength
+        if (total > 0) {
+          const job = jobs.get(jobId)
+          if (job) job.progress = Math.min(99, (downloaded / total) * 100)
+        }
+        controller.enqueue(chunk)
+      }
+    })
+
+    await pipeline(
+      Readable.fromWeb(response.body.pipeThrough(progress)),
+      fs.createWriteStream(outputPath)
+    )
+  }
+
+  function readCookieHeader() {
+    if (!tools.cookiesFile) return ''
+
+    return fs.readFileSync(config.ytdlpCookiesFile, 'utf8')
+      .split(/\r?\n/)
+      .map(line => line.startsWith('#HttpOnly_') ? line.slice('#HttpOnly_'.length) : line)
+      .filter(line => line && !line.startsWith('#'))
+      .map(line => line.split('\t'))
+      .filter(parts => parts.length >= 7)
+      .map(parts => `${parts[5]}=${parts.slice(6).join('\t')}`)
+      .join('; ')
+  }
+
+  function buildDouyinHeaders(cookie, referer = 'https://www.douyin.com/') {
+    const headers = {
+      'User-Agent': DOUYIN_USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7',
+      Referer: referer
+    }
+
+    if (cookie) headers.Cookie = cookie
+    return headers
   }
 
   function updateProgress(jobId, chunk) {
@@ -338,6 +477,148 @@ function shouldUseYouTubeFallback(stderr) {
       || text.includes('only images are available')
       || text.includes('403')
     )
+}
+
+function shouldUseDouyinFallback(stderr) {
+  const text = stderr.toLowerCase()
+
+  return text.includes('[douyin]')
+    && (
+      text.includes('fresh cookies')
+      || text.includes('failed to parse json')
+      || text.includes('no video formats')
+      || text.includes('403')
+      || text.includes('login')
+    )
+}
+
+function extractDouyinVideoId(url, html) {
+  const fromUrl = url.match(/\/video\/(\d+)/)
+    || url.match(/[?&]modal_id=(\d+)/)
+    || url.match(/[?&]aweme_id=(\d+)/)
+  if (fromUrl) return fromUrl[1]
+
+  const fromHtml = html.match(/"aweme_id"\s*:\s*"(\d+)"/)
+    || html.match(/"awemeId"\s*:\s*"(\d+)"/)
+    || html.match(/\/video\/(\d+)/)
+  return fromHtml ? fromHtml[1] : ''
+}
+
+function extractDouyinUrlsFromHtml(html) {
+  const candidates = []
+
+  for (const data of extractJsonBlobs(html)) {
+    candidates.push(...extractDouyinUrlsFromJson(data))
+  }
+
+  const escapedUrlPattern = /https?:\\?\/\\?\/[^"']+(?:play|playwm|douyin|byte)[^"']+/g
+  for (const match of html.matchAll(escapedUrlPattern)) {
+    candidates.push(unescapeJsonString(match[0]))
+  }
+
+  return candidates
+}
+
+function extractJsonBlobs(html) {
+  const blobs = []
+  const renderData = html.match(/<script[^>]+id=["']RENDER_DATA["'][^>]*>([^<]+)<\/script>/)
+  if (renderData) {
+    try {
+      blobs.push(JSON.parse(decodeURIComponent(renderData[1])))
+    } catch (err) {
+      console.warn('douyin fallback RENDER_DATA skipped:', err.message)
+    }
+  }
+
+  const routerData = html.match(/window\._ROUTER_DATA\s*=\s*({.+?})\s*<\/script>/s)
+  if (routerData) {
+    try {
+      blobs.push(JSON.parse(routerData[1]))
+    } catch (err) {
+      console.warn('douyin fallback ROUTER_DATA skipped:', err.message)
+    }
+  }
+
+  const hydrationData = html.match(/<script[^>]+id=["']SIGI_STATE["'][^>]*>([^<]+)<\/script>/)
+  if (hydrationData) {
+    try {
+      blobs.push(JSON.parse(hydrationData[1]))
+    } catch (err) {
+      console.warn('douyin fallback SIGI_STATE skipped:', err.message)
+    }
+  }
+
+  return blobs
+}
+
+function extractDouyinUrlsFromJson(data) {
+  const urls = []
+  const seen = new Set()
+
+  function visit(value, key = '') {
+    if (!value) return
+
+    if (typeof value === 'string') {
+      const normalized = unescapeJsonString(value)
+      if (looksLikeDouyinMediaUrl(normalized) && !seen.has(normalized)) {
+        seen.add(normalized)
+        urls.push(normalized)
+      }
+      return
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, key)
+      return
+    }
+
+    if (typeof value !== 'object') return
+
+    if (isPlayAddressKey(key) && Array.isArray(value.url_list)) {
+      for (const url of value.url_list) visit(url, key)
+    }
+    if (isPlayAddressKey(key) && Array.isArray(value.urlList)) {
+      for (const url of value.urlList) visit(url, key)
+    }
+    if (isPlayAddressKey(key) && typeof value.src === 'string') {
+      visit(value.src, key)
+    }
+
+    for (const [childKey, childValue] of Object.entries(value)) {
+      visit(childValue, childKey)
+    }
+  }
+
+  visit(data)
+  return urls
+}
+
+function isPlayAddressKey(key) {
+  return /play[_-]?addr|playaddr|download|video/i.test(key)
+}
+
+function looksLikeDouyinMediaUrl(url) {
+  return /^https?:\/\//.test(url)
+    && /(aweme|douyin|byte|snssdk|ixigua|tos-cn)/i.test(url)
+    && /(play|mime_type=video|video_id|\.mp4|tos-cn)/i.test(url)
+}
+
+function normalizeDouyinMediaUrl(url) {
+  if (!url || !/^https?:\/\//.test(url)) return ''
+
+  try {
+    const mediaUrl = new URL(url.replace(/\\u0026/g, '&'))
+    mediaUrl.href = mediaUrl.href.replace('/playwm/', '/play/')
+    return mediaUrl.href
+  } catch {
+    return ''
+  }
+}
+
+function unescapeJsonString(value) {
+  return value
+    .replace(/\\u0026/g, '&')
+    .replace(/\\\//g, '/')
 }
 
 function classifyDownloadError(stderr, timedOut) {
