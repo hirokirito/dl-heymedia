@@ -1,13 +1,16 @@
-const { spawnSync } = require('child_process')
+const { execSync } = require('child_process')
 
 function commandExists(command) {
-  const result = spawnSync(command, ['--version'], {
-    encoding: 'utf8',
-    timeout: 30000,
-    windowsHide: true
-  })
-
-  return !result.error && result.status === 0
+  try {
+    execSync(`${command} --version`, {
+      stdio: 'ignore'
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
-module.exports = { commandExists }
+module.exports = {
+  commandExists
+}

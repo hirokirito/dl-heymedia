@@ -11,6 +11,7 @@ const tools = {
   ytdlp: commandExists(config.ytdlpBin),
   ffmpeg: commandExists(config.ffmpegBin)
 }
+console.log('[tools]', tools)
 
 const downloadManager = createDownloadManager(config, tools)
 
@@ -26,9 +27,8 @@ function createApp() {
 
   app.get('/health', (req, res) => {
     res.json({
-      ok: tools.ytdlp,
-      tools,
-      activeJobs: downloadManager.activeJobCount()
+      ok: true,
+      tools
     })
   })
   console.log('[routes] GET /health')

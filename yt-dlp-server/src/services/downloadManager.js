@@ -59,8 +59,10 @@ function createDownloadManager(config, tools) {
     ]
 
     if (format === 'audio') {
+      if (tools.ffmpeg) args.push('--ffmpeg-location', config.ffmpegBin)
       args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0')
     } else if (tools.ffmpeg) {
+      args.push('--ffmpeg-location', config.ffmpegBin)
       args.push('--merge-output-format', 'mp4')
       addMergedVideoFormat(args, quality)
     } else {
