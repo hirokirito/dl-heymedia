@@ -15,6 +15,7 @@ const config = {
   ffmpegBin: process.env.FFMPEG_BIN || resolveCommand(['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', 'ffmpeg']),
   ytdlpJsRuntime: process.env.YTDLP_JS_RUNTIME || resolveCommand(['/usr/local/bin/deno', '/home/heymedia/.deno/bin/deno', 'deno']),
   ytdlpCookiesFile: process.env.YTDLP_COOKIES_FILE || '',
+  ytdlpImpersonateClient: process.env.YTDLP_IMPERSONATE_CLIENT || '',
   youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || '',
   youtubePoToken: process.env.YOUTUBE_PO_TOKEN || '',
   allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online']

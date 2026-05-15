@@ -17,6 +17,7 @@ services:
       YTDLP_BIN: /usr/local/bin/yt-dlp
       FFMPEG_BIN: /usr/bin/ffmpeg
       YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
+      YTDLP_IMPERSONATE_CLIENT: ${YTDLP_IMPERSONATE_CLIENT:-}
       YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-}
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
     ports:

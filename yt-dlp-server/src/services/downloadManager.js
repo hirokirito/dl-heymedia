@@ -119,6 +119,10 @@ function createDownloadManager(config, tools) {
   function addPlatformHeaders(args, url) {
     if (!isDouyinUrl(url)) return
 
+    if (config.ytdlpImpersonateClient) {
+      args.push('--impersonate', config.ytdlpImpersonateClient)
+    }
+
     args.push(
       '--user-agent', DOUYIN_USER_AGENT,
       '--add-header', 'Referer:https://www.douyin.com/'

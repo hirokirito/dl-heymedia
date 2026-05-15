@@ -173,6 +173,7 @@ If YouTube starts returning PO-token or 403 errors, update `yt-dlp` first by reb
 ```env
 YTDLP_JS_RUNTIME=/usr/local/bin/deno
 YTDLP_COOKIES_FILE=/home/heymedia/yt-dlp-server/yt-dlp-server/cookies/douyin-cookies.txt
+YTDLP_IMPERSONATE_CLIENT=chrome
 YOUTUBE_PLAYER_CLIENT=mweb
 YOUTUBE_PO_TOKEN=mweb.gvs+TOKEN_VALUE
 ```
@@ -219,10 +220,10 @@ docker compose up -d
 
 When `yt-dlp` returns Douyin `Fresh cookies` or JSON parsing errors, the server retries video downloads with a custom Douyin fallback that reads the logged-in cookie file, resolves the share URL, extracts a playable video URL from Douyin page data, and streams the MP4 directly.
 
-On direct PM2/Ubuntu deployments, install `curl_cffi` for better `yt-dlp` browser impersonation support:
+On direct PM2/Ubuntu deployments, install a `curl_cffi` version supported by the current `yt-dlp` release for better browser impersonation support:
 
 ```bash
-python3 -m pip install -U --break-system-packages curl_cffi
+python3 -m pip install -U --break-system-packages 'curl_cffi==0.13.0'
 ```
 
-Then confirm `yt-dlp -v` shows `curl_cffi` under optional libraries before retrying Douyin.
+Then confirm `yt-dlp -v` shows `curl_cffi` under request handlers before retrying Douyin. If `yt-dlp -v` marks it as `unsupported`, downgrade to a supported version.
