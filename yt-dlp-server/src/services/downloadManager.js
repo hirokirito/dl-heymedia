@@ -23,12 +23,17 @@ function createDownloadManager(config, tools) {
     const jobId = randomUUID()
     const outputTemplate = path.join(config.downloadDir, `${jobId}.%(ext)s`)
     const args = buildYtDlpArgs({ url, format, quality, outputTemplate })
+    const fallbackArgs = isYouTubeUrl(url)
+      ? buildYouTubeFallbackArgs({ url, format, quality, outputTemplate })
+      : null
 
     jobs.set(jobId, {
       status: 'downloading',
       progress: 0,
       filepath: null,
       filename: null,
+      fallbackArgs,
+      usedFallback: false,
       startTime: Date.now()
     })
 
@@ -58,6 +63,8 @@ function createDownloadManager(config, tools) {
       '-o', outputTemplate
     ]
 
+    addJsRuntime(args)
+
     if (format === 'audio') {
       if (tools.ffmpeg) args.push('--ffmpeg-location', config.ffmpegBin)
       args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0')
@@ -75,6 +82,41 @@ function createDownloadManager(config, tools) {
 
     args.push(url)
     return args
+  }
+
+  function buildYouTubeFallbackArgs({ url, format, quality, outputTemplate }) {
+    const args = buildYtDlpArgs({ url, format, quality, outputTemplate })
+    const urlArg = args.pop()
+
+    removeFormatArgs(args)
+    removeYouTubeExtractorArgs(args)
+    args.push(
+      '--extractor-args', 'youtube:player_client=android',
+      '-f', format === 'audio' ? 'ba/bestaudio/best' : 'best[ext=mp4]/18/best',
+      urlArg
+    )
+
+    return args
+  }
+
+  function addJsRuntime(args) {
+    if (tools.jsRuntime) args.push('--js-runtimes', config.ytdlpJsRuntime)
+  }
+
+  function removeFormatArgs(args) {
+    let index = args.indexOf('-f')
+    while (index !== -1) {
+      args.splice(index, 2)
+      index = args.indexOf('-f')
+    }
+  }
+
+  function removeYouTubeExtractorArgs(args) {
+    for (let index = args.length - 2; index >= 0; index -= 1) {
+      if (args[index] === '--extractor-args' && args[index + 1].startsWith('youtube:')) {
+        args.splice(index, 2)
+      }
+    }
   }
 
   function addMergedVideoFormat(args, quality) {
@@ -161,6 +203,15 @@ function createDownloadManager(config, tools) {
       currentJob.proc = null
 
       if (code === 0) return completeJob(jobId)
+
+      if (!timedOut && currentJob.fallbackArgs && !currentJob.usedFallback && shouldUseYouTubeFallback(stderrBuf)) {
+        currentJob.usedFallback = true
+        currentJob.progress = 0
+        cleanupJobFiles(jobId)
+        console.warn('yt-dlp retrying with YouTube Android fallback:', stderrBuf.slice(-300))
+        runYtDlpJob(jobId, currentJob.fallbackArgs, attempt + 1)
+        return
+      }
 
       if (!timedOut && attempt < 2) {
         cleanupJobFiles(jobId)
@@ -257,6 +308,21 @@ function createDownloadManager(config, tools) {
     getJob,
     removeJob
   }
+}
+
+function shouldUseYouTubeFallback(stderr) {
+  const text = stderr.toLowerCase()
+
+  return text.includes('[youtube]')
+    && (
+      text.includes('this video is not available')
+      || text.includes('sabr')
+      || text.includes('po token')
+      || text.includes('missing a url')
+      || text.includes('no supported javascript runtime')
+      || text.includes('only images are available')
+      || text.includes('403')
+    )
 }
 
 function classifyDownloadError(stderr, timedOut) {

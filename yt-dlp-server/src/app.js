@@ -9,7 +9,8 @@ const { commandExists } = require('./utils/tools')
 
 const tools = {
   ytdlp: commandExists(config.ytdlpBin),
-  ffmpeg: commandExists(config.ffmpegBin)
+  ffmpeg: commandExists(config.ffmpegBin),
+  jsRuntime: commandExists(config.ytdlpJsRuntime)
 }
 console.log('[tools]', tools)
 

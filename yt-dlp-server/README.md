@@ -171,6 +171,7 @@ curl http://127.0.0.1:3001/health
 If YouTube starts returning PO-token or 403 errors, update `yt-dlp` first by rebuilding. If needed, set:
 
 ```env
+YTDLP_JS_RUNTIME=/usr/local/bin/deno
 YOUTUBE_PLAYER_CLIENT=mweb
 YOUTUBE_PO_TOKEN=mweb.gvs+TOKEN_VALUE
 ```
