@@ -19,8 +19,11 @@ const config = {
   ytdlpCookiesFile: process.env.YTDLP_COOKIES_FILE || '',
   ytdlpImpersonateClient: process.env.YTDLP_IMPERSONATE_CLIENT || '',
   douyinBrowserFallback: process.env.DOUYIN_BROWSER_FALLBACK === '1',
-  youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || '',
-  youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || 'tv,web_safari,mweb',
+  // Mặc định của yt-dlp rơi vào android_vr, GVS URL của client này bị 403 giữa
+  // chừng. mweb/web_safari tải trọn vẹn nên đặt thẳng làm client chính.
+  youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || 'mweb,web_safari',
+  // Bỏ 'tv': client này trả "The page needs to be reloaded".
+  youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || 'web',
   youtubePoToken: process.env.YOUTUBE_PO_TOKEN || '',
   youtubePotBaseUrl: process.env.YOUTUBE_POT_BASE_URL || '',
   allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online']

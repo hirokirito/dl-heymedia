@@ -6,11 +6,15 @@ services:
     container_name: heymedia-yt-dlp-server
     restart: unless-stopped
     init: true
+    # Khớp uid/gid host để ghi được vào bind mount ./downloads. Docker tạo thư
+    # mục bind mount bằng root nếu nó chưa tồn tại, nên phải mkdir trước khi up.
+    user: "${RUN_UID:-1000}:${RUN_GID:-1000}"
     depends_on:
       - bgutil-provider
     environment:
       NODE_ENV: production
-      PORT: ${PORT:-3001}
+      # Cố định: đây là port bên trong container, không đổi theo host.
+      PORT: 3001
       HOST: 0.0.0.0
       DOWNLOAD_DIR: /downloads
       MAX_ACTIVE_JOBS: ${MAX_ACTIVE_JOBS:-3}
@@ -26,14 +30,15 @@ services:
       YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
       YTDLP_IMPERSONATE_CLIENT: ${YTDLP_IMPERSONATE_CLIENT:-}
       DOUYIN_BROWSER_FALLBACK: ${DOUYIN_BROWSER_FALLBACK:-0}
-      # Để trống = dùng client mặc định của yt-dlp (khuyến nghị).
-      YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-}
-      YOUTUBE_FALLBACK_PLAYER_CLIENT: ${YOUTUBE_FALLBACK_PLAYER_CLIENT:-tv,web_safari,mweb}
+      # Client mặc định của yt-dlp (android_vr) bị YouTube trả 403 giữa chừng.
+      YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-mweb,web_safari}
+      YOUTUBE_FALLBACK_PLAYER_CLIENT: ${YOUTUBE_FALLBACK_PLAYER_CLIENT:-web}
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
       # Provider tự sinh PO token, thay cho việc dán tay YOUTUBE_PO_TOKEN.
       YOUTUBE_POT_BASE_URL: ${YOUTUBE_POT_BASE_URL:-http://bgutil-provider:4416}
     ports:
-      - "127.0.0.1:${PORT:-3001}:3001"
+      # BIND_ADDR: đổi thành 0.0.0.0 nếu cần client LAN gọi trực tiếp.
+      - "${BIND_ADDR:-127.0.0.1}:${HOST_PORT:-3001}:3001"
     volumes:
       - ./downloads:/downloads
       - ./cookies:/cookies:ro

@@ -26,7 +26,13 @@ The app is a lightweight Node/Express server that serves the frontend and runs `
 Create an optional `.env` file next to `docker-compose.yml`:
 
 ```env
-PORT=3001
+# Port phía host. Port bên trong container luôn cố định là 3001.
+HOST_PORT=3001
+# 127.0.0.1 = chỉ localhost. Đặt 0.0.0.0 nếu client LAN gọi trực tiếp.
+BIND_ADDR=127.0.0.1
+# uid:gid chạy container, phải khớp chủ sở hữu thư mục ./downloads.
+RUN_UID=1000
+RUN_GID=1000
 MAX_ACTIVE_JOBS=3
 JOB_TIMEOUT_MS=600000
 JOB_TTL_MS=3600000
@@ -34,9 +40,10 @@ JOB_TTL_MS=3600000
 # 1 = tự cập nhật yt-dlp mỗi lần container khởi động (mặc định).
 YTDLP_AUTO_UPDATE=1
 
-# Để trống = dùng client mặc định của yt-dlp. Chỉ set khi cần ép.
-YOUTUBE_PLAYER_CLIENT=
-YOUTUBE_FALLBACK_PLAYER_CLIENT=tv,web_safari,mweb
+# Client mặc định của yt-dlp (android_vr) bị YouTube trả 403 giữa chừng, còn
+# 'tv' trả "The page needs to be reloaded". Chỉ đổi khi YouTube lại thay đổi.
+YOUTUBE_PLAYER_CLIENT=mweb,web_safari
+YOUTUBE_FALLBACK_PLAYER_CLIENT=web
 YOUTUBE_PO_TOKEN=
 
 # Provider tự sinh PO token (service bgutil-provider trong docker-compose).
@@ -47,16 +54,25 @@ Defaults are already set in `docker-compose.yml`, so `.env` is only needed when 
 
 ## Build And Start
 
-Create the persistent downloads folder:
+Tạo thư mục downloads **trước khi** `up`. Nếu chưa tồn tại, Docker sẽ tự tạo nó
+bằng `root`, trong khi container chạy bằng uid 1000 — yt-dlp sẽ chết với
+`[Errno 13] Permission denied` ngay khi ghi file `.part`:
 
 ```bash
-mkdir -p downloads
+mkdir -p downloads cookies
+# Chỉ cần khi thư mục đã lỡ bị tạo bằng root:
 sudo chown -R 1000:1000 downloads
 ```
 
 ```bash
 docker compose build
 docker compose up -d
+```
+
+Chạy thử ở port khác mà không đụng service đang chạy:
+
+```bash
+HOST_PORT=3002 docker compose up -d
 ```
 
 Check status:

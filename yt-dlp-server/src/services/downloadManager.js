@@ -619,16 +619,18 @@ function shouldUseYouTubeFallback(stderr) {
   // Thiếu JS runtime thì đổi client cũng vô ích, để lỗi nổi lên cho rõ.
   if (isJsRuntimeError(text)) return false
 
-  return text.includes('[youtube]')
-    && (
-      text.includes('this video is not available')
-      || text.includes('sabr')
-      || text.includes('po token')
-      || text.includes('missing a url')
-      || text.includes('only images are available')
-      || text.includes('requested format is not available')
-      || text.includes('403')
-    )
+  // Không lọc theo '[youtube]': hàm chỉ chạy khi job có fallbackArgs, mà
+  // fallbackArgs chỉ tồn tại với URL YouTube. 403 lại đến từ tầng downloader
+  // nên không mang tiền tố extractor, guard đó chặn nhầm đúng ca cần retry.
+  return text.includes('403')
+    || text.includes('unable to download video data')
+    || text.includes('this video is not available')
+    || text.includes('sabr')
+    || text.includes('po token')
+    || text.includes('missing a url')
+    || text.includes('only images are available')
+    || text.includes('requested format is not available')
+    || text.includes('the page needs to be reloaded')
 }
 
 function shouldUseDouyinFallback(stderr) {
@@ -809,6 +811,11 @@ function classifyDownloadError(stderr, timedOut) {
 
   if (timedOut) return 'Tải xuống quá thời gian cho phép. Video có thể quá lớn hoặc nền tảng phản hồi quá chậm.'
   if (text.includes('ffmpeg') && text.includes('not found')) return 'Server thiếu ffmpeg. Không thể ghép video/audio hoặc xuất MP3.'
+  // Phải đứng trước nhánh 403: ghi file hỏng làm yt-dlp bỏ cuộc kèm 403, khớp
+  // nhầm nhánh dưới thì lỗi quyền bị báo thành lỗi YouTube.
+  if (text.includes('errno 13') || text.includes('permission denied')) {
+    return 'Server không ghi được vào thư mục downloads. Kiểm tra quyền: chown -R 1000:1000 downloads.'
+  }
   if (isJsRuntimeError(text)) {
     return 'Server thiếu JS runtime (Deno) hoặc gói yt-dlp-ejs nên không giải được mã của YouTube. Rebuild image hoặc cài yt-dlp[default,deno].'
   }
