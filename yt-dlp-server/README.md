@@ -44,7 +44,15 @@ YTDLP_AUTO_UPDATE=1
 # trả "The page needs to be reloaded", 'web' chỉ trả storyboard với video dài.
 # web_embedded qua được cả video ngắn lẫn video 40+ phút.
 YOUTUBE_PLAYER_CLIENT=web_embedded,mweb
-YOUTUBE_FALLBACK_PLAYER_CLIENT=mweb,web_safari
+
+# Chuỗi client thử lần lượt: mỗi client là MỘT lượt chạy yt-dlp riêng, đổi sang
+# client kế tiếp khi lượt trước bị 403 hoặc không tìm được format nào. Lưu ý
+# player_client=a,b của yt-dlp KHÔNG phải thử a rồi tới b — nó gộp format của cả
+# hai rồi chọn cái tốt nhất, nên phải chạy lại mới thực sự đổi được client.
+YOUTUBE_CLIENT_CHAIN=web_embedded,mweb,web_safari,android
+
+# Đã thay bằng YOUTUBE_CLIENT_CHAIN; nếu còn set thì được nối vào cuối chuỗi.
+YOUTUBE_FALLBACK_PLAYER_CLIENT=
 YOUTUBE_PO_TOKEN=
 
 # Provider tự sinh PO token (service bgutil-provider trong docker-compose).

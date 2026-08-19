@@ -27,8 +27,8 @@ function createDownloadManager(config, tools) {
     const jobId = randomUUID()
     const outputTemplate = path.join(config.downloadDir, `${jobId}.%(ext)s`)
     const args = buildYtDlpArgs({ url, format, quality, outputTemplate })
-    const fallbackArgs = isYouTubeUrl(url)
-      ? buildYouTubeFallbackArgs({ url, format, quality, outputTemplate })
+    const attempts = isYouTubeUrl(url)
+      ? buildYouTubeClientAttempts({ url, format, quality, outputTemplate, baseArgs: args })
       : null
 
     jobs.set(jobId, {
@@ -36,7 +36,8 @@ function createDownloadManager(config, tools) {
       progress: 0,
       filepath: null,
       filename: null,
-      fallbackArgs,
+      attempts,
+      attemptIndex: 0,
       douyinFallback: isDouyinUrl(url) && format !== 'audio'
         ? { url, outputPath: path.join(config.downloadDir, `${jobId}.mp4`) }
         : null,
@@ -44,7 +45,7 @@ function createDownloadManager(config, tools) {
       startTime: Date.now()
     })
 
-    runYtDlpJob(jobId, args)
+    runYtDlpJob(jobId, attempts ? attempts[0].args : args)
     return jobId
   }
 
@@ -93,24 +94,54 @@ function createDownloadManager(config, tools) {
     return args
   }
 
-  function buildYouTubeFallbackArgs({ url, format, quality, outputTemplate }) {
+  // Mỗi phần tử của chuỗi là một lượt chạy yt-dlp riêng với đúng một cấu hình
+  // player_client. Lưu ý `player_client=a,b` KHÔNG phải thử a rồi tới b: yt-dlp
+  // gộp format của mọi client rồi chọn cái tốt nhất, và không đổi client khi
+  // URL đã chọn bị 403 giữa chừng. Muốn thử lần lượt thì phải chạy lại như đây.
+  function buildYouTubeClientAttempts({ url, format, quality, outputTemplate, baseArgs }) {
+    const specs = []
+    const seen = new Set()
+    const add = spec => {
+      const client = spec.trim()
+      if (!client || seen.has(client)) return
+      seen.add(client)
+      specs.push(client)
+    }
+
+    // Lượt đầu giữ nguyên cấu hình primary, kể cả khi nó gộp nhiều client — đây
+    // là cấu hình đã kiểm chứng chạy được, đừng đổi hành vi mặc định.
+    const primary = String(config.youtubePlayerClient || '').trim()
+    add(primary)
+
+    // Các lượt sau tách từng client một, để đổi hẳn nguồn format thay vì chỉ
+    // đổi thứ tự ưu tiên trong cùng một tập gộp.
+    for (const source of [config.youtubeClientChain, config.youtubeFallbackPlayerClient]) {
+      String(source || '').split(',').forEach(add)
+    }
+
+    // Chuỗi rỗng: giữ nguyên hành vi cũ, chạy đúng một lượt bằng args gốc.
+    if (!specs.length) return [{ client: '(mặc định yt-dlp)', args: baseArgs }]
+
+    return specs.map(client => ({
+      client,
+      args: buildYouTubeClientArgs({ url, format, quality, outputTemplate, client })
+    }))
+  }
+
+  function buildYouTubeClientArgs({ url, format, quality, outputTemplate, client }) {
+    // Dựng lại từ đầu để mọi lượt dùng chung format selector chuẩn. Fallback cũ
+    // ép `b[ext=mp4]/b/best` (chỉ format muxed), mà video dài không có format
+    // muxed nào nên luôn chết với "Requested format is not available".
     const args = buildYtDlpArgs({ url, format, quality, outputTemplate })
     const urlArg = args.pop()
 
-    removeFormatArgs(args)
     removeYouTubeExtractorArgs(args)
 
-    // Client `android` đã bị YouTube chặn từ lâu, dùng chuỗi client còn sống.
-    const fallbackClients = config.youtubeFallbackPlayerClient.trim()
-    if (fallbackClients) {
-      args.push('--extractor-args', `youtube:player_client=${fallbackClients}`)
-    }
+    const youtubeArgs = [`player_client=${client}`]
+    if (config.youtubePoToken) youtubeArgs.push(`po_token=${config.youtubePoToken}`)
+    args.push('--extractor-args', `youtube:${youtubeArgs.join(';')}`)
 
-    args.push(
-      '-f', format === 'audio' ? 'ba/bestaudio/best' : 'b[ext=mp4]/b/best',
-      urlArg
-    )
-
+    args.push(urlArg)
     return args
   }
 
@@ -138,14 +169,6 @@ function createDownloadManager(config, tools) {
       '--user-agent', DOUYIN_USER_AGENT,
       '--add-header', 'Referer:https://www.douyin.com/'
     )
-  }
-
-  function removeFormatArgs(args) {
-    let index = args.indexOf('-f')
-    while (index !== -1) {
-      args.splice(index, 2)
-      index = args.indexOf('-f')
-    }
   }
 
   function removeYouTubeExtractorArgs(args) {
@@ -256,16 +279,26 @@ function createDownloadManager(config, tools) {
         return
       }
 
-      if (!timedOut && currentJob.fallbackArgs && !currentJob.usedFallback && shouldUseYouTubeFallback(stderrBuf)) {
-        currentJob.usedFallback = true
+      const attempts = currentJob.attempts
+      const hasNextClient = attempts && currentJob.attemptIndex + 1 < attempts.length
+
+      if (!timedOut && hasNextClient && shouldUseYouTubeFallback(stderrBuf)) {
+        const failedClient = attempts[currentJob.attemptIndex].client
+        currentJob.attemptIndex += 1
         currentJob.progress = 0
         cleanupJobFiles(jobId)
-        console.warn('yt-dlp retrying with YouTube Android fallback:', stderrBuf.slice(-300))
-        runYtDlpJob(jobId, currentJob.fallbackArgs, attempt + 1)
+        const nextClient = attempts[currentJob.attemptIndex].client
+        console.warn(
+          `yt-dlp client "${failedClient}" thất bại, thử "${nextClient}":`,
+          stderrBuf.slice(-300)
+        )
+        runYtDlpJob(jobId, attempts[currentJob.attemptIndex].args, attempt + 1)
         return
       }
 
-      if (!timedOut && attempt < 2) {
+      // Chuỗi client đã tự lo phần thử lại cho YouTube, chỉ retry mù cho các
+      // nền tảng khác để tránh chạy lại đúng cấu hình vừa hỏng.
+      if (!timedOut && !attempts && attempt < 2) {
         cleanupJobFiles(jobId)
         runYtDlpJob(jobId, args, attempt + 1)
         return
@@ -619,9 +652,9 @@ function shouldUseYouTubeFallback(stderr) {
   // Thiếu JS runtime thì đổi client cũng vô ích, để lỗi nổi lên cho rõ.
   if (isJsRuntimeError(text)) return false
 
-  // Không lọc theo '[youtube]': hàm chỉ chạy khi job có fallbackArgs, mà
-  // fallbackArgs chỉ tồn tại với URL YouTube. 403 lại đến từ tầng downloader
-  // nên không mang tiền tố extractor, guard đó chặn nhầm đúng ca cần retry.
+  // Không lọc theo '[youtube]': hàm chỉ chạy khi job có chuỗi client, mà chuỗi
+  // đó chỉ tồn tại với URL YouTube. 403 lại đến từ tầng downloader nên không
+  // mang tiền tố extractor, guard đó chặn nhầm đúng ca cần retry.
   return text.includes('403')
     || text.includes('unable to download video data')
     || text.includes('this video is not available')

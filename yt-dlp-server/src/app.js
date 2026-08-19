@@ -176,7 +176,8 @@ async function collectDiagnostics() {
     ffmpeg: pickDebugLine(debugOutput, 'exe versions'),
     potProvider,
     youtubePlayerClient: config.youtubePlayerClient || '(mặc định của yt-dlp)',
-    youtubeFallbackPlayerClient: config.youtubeFallbackPlayerClient,
+    youtubeClientChain: config.youtubeClientChain,
+    youtubeFallbackPlayerClient: config.youtubeFallbackPlayerClient || '(không set)',
     cookiesFile: tools.cookiesFile ? config.ytdlpCookiesFile : null,
     tools
   }
