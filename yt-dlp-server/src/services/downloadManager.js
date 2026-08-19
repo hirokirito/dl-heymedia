@@ -99,9 +99,15 @@ function createDownloadManager(config, tools) {
 
     removeFormatArgs(args)
     removeYouTubeExtractorArgs(args)
+
+    // Client `android` đã bị YouTube chặn từ lâu, dùng chuỗi client còn sống.
+    const fallbackClients = config.youtubeFallbackPlayerClient.trim()
+    if (fallbackClients) {
+      args.push('--extractor-args', `youtube:player_client=${fallbackClients}`)
+    }
+
     args.push(
-      '--extractor-args', 'youtube:player_client=android',
-      '-f', format === 'audio' ? 'ba/bestaudio/best' : 'best[ext=mp4]/18/best',
+      '-f', format === 'audio' ? 'ba/bestaudio/best' : 'b[ext=mp4]/b/best',
       urlArg
     )
 
@@ -109,7 +115,12 @@ function createDownloadManager(config, tools) {
   }
 
   function addJsRuntime(args) {
-    if (tools.jsRuntime) args.push('--js-runtimes', config.ytdlpJsRuntime)
+    // Cú pháp là `--js-runtimes NAME[:PATH]`, truyền mỗi path là yt-dlp báo lỗi.
+    if (!tools.jsRuntime) return
+
+    const name = config.ytdlpJsRuntimeName || 'deno'
+    const runtimePath = config.ytdlpJsRuntime
+    args.push('--js-runtimes', runtimePath && runtimePath !== name ? `${name}:${runtimePath}` : name)
   }
 
   function addCookiesFile(args) {
@@ -175,6 +186,12 @@ function createDownloadManager(config, tools) {
       if (config.youtubePlayerClient) youtubeArgs.push(`player_client=${config.youtubePlayerClient}`)
       if (config.youtubePoToken) youtubeArgs.push(`po_token=${config.youtubePoToken}`)
       if (youtubeArgs.length) extractorArgs.push(`youtube:${youtubeArgs.join(';')}`)
+
+      // Plugin bgutil tự sinh PO token, ưu tiên hơn token dán tay vì YouTube
+      // gắn token theo từng video id.
+      if (config.youtubePotBaseUrl) {
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=${config.youtubePotBaseUrl}`)
+      }
     }
 
     return extractorArgs
@@ -256,8 +273,9 @@ function createDownloadManager(config, tools) {
 
       currentJob.status = 'error'
       currentJob.error = classifyDownloadError(stderrBuf, timedOut)
+      currentJob.detail = stderrBuf.slice(-1200)
       cleanupJobFiles(jobId)
-      console.error('yt-dlp error:', stderrBuf.slice(-500))
+      console.error('yt-dlp error:', stderrBuf.slice(-1200))
     })
   }
 
@@ -598,14 +616,17 @@ function createDownloadManager(config, tools) {
 function shouldUseYouTubeFallback(stderr) {
   const text = stderr.toLowerCase()
 
+  // Thiếu JS runtime thì đổi client cũng vô ích, để lỗi nổi lên cho rõ.
+  if (isJsRuntimeError(text)) return false
+
   return text.includes('[youtube]')
     && (
       text.includes('this video is not available')
       || text.includes('sabr')
       || text.includes('po token')
       || text.includes('missing a url')
-      || text.includes('no supported javascript runtime')
       || text.includes('only images are available')
+      || text.includes('requested format is not available')
       || text.includes('403')
     )
 }
@@ -774,15 +795,30 @@ function unescapeJsonString(value) {
     .replace(/\\\//g, '/')
 }
 
+function isJsRuntimeError(text) {
+  return text.includes('javascript runtime')
+    || text.includes('js runtime')
+    || text.includes('yt-dlp-ejs')
+    || text.includes('remote-components')
+    || text.includes('nsig extraction failed')
+    || text.includes('unable to decode n-parameter')
+}
+
 function classifyDownloadError(stderr, timedOut) {
   const text = stderr.toLowerCase()
 
   if (timedOut) return 'Tải xuống quá thời gian cho phép. Video có thể quá lớn hoặc nền tảng phản hồi quá chậm.'
   if (text.includes('ffmpeg') && text.includes('not found')) return 'Server thiếu ffmpeg. Không thể ghép video/audio hoặc xuất MP3.'
+  if (isJsRuntimeError(text)) {
+    return 'Server thiếu JS runtime (Deno) hoặc gói yt-dlp-ejs nên không giải được mã của YouTube. Rebuild image hoặc cài yt-dlp[default,deno].'
+  }
+  if (text.includes('confirm you') && text.includes('bot')) {
+    return 'YouTube yêu cầu xác minh không phải bot. Cần nạp cookies qua YTDLP_COOKIES_FILE hoặc bật PO token provider.'
+  }
   if (text.includes('private') || text.includes('login') || text.includes('sign in')) return 'Video cần đăng nhập hoặc đang ở chế độ riêng tư.'
   if (text.includes('copyright') || text.includes('unavailable')) return 'Video không khả dụng hoặc bị giới hạn bởi nền tảng.'
   if (text.includes('403') || text.includes('po token') || text.includes('proof of origin')) {
-    return 'YouTube từ chối tải video này. Hãy cập nhật yt-dlp hoặc cấu hình YOUTUBE_PLAYER_CLIENT/YOUTUBE_PO_TOKEN nếu cần.'
+    return 'YouTube từ chối tải video này. Kiểm tra /api/diagnostics: yt-dlp có mới không, PO token provider có chạy không.'
   }
   if (text.includes('timed out') || text.includes('connection') || text.includes('network')) return 'Lỗi mạng tạm thời khi tải video. Vui lòng thử lại.'
 

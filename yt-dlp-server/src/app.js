@@ -1,6 +1,7 @@
 const express = require('express')
 const fs = require('fs')
 const path = require('path')
+const { execFile } = require('child_process')
 const config = require('./config')
 const { createCorsMiddleware } = require('./middleware/cors')
 const { createDownloadManager } = require('./services/downloadManager')
@@ -38,6 +39,14 @@ function createApp() {
     })
   })
   console.log('[routes] GET /health')
+
+  // Xem nhanh yt-dlp còn khoẻ không mà không cần SSH vào server.
+  app.get('/api/diagnostics', (req, res) => {
+    collectDiagnostics()
+      .then(data => res.json(data))
+      .catch(err => res.status(500).json({ error: err.message }))
+  })
+  console.log('[routes] GET /api/diagnostics')
 
   app.post('/api/download', (req, res) => {
     const { url, format = 'video', quality = 'best' } = req.body
@@ -119,6 +128,58 @@ function validateDownloadRequest({ url, format, quality }) {
 
 function httpError(statusCode, message) {
   return { statusCode, message }
+}
+
+function runCommand(bin, args, timeout = 20000) {
+  return new Promise(resolve => {
+    execFile(bin, args, { timeout, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve(`${stdout || ''}${stderr || ''}`.trim() || (err ? err.message : ''))
+    })
+  })
+}
+
+function pickDebugLine(output, label) {
+  const line = output.split('\n').find(item => item.startsWith(`[debug] ${label}`))
+  return line ? line.replace(`[debug] ${label}:`, '').trim() : null
+}
+
+async function checkPotProvider() {
+  if (!config.youtubePotBaseUrl) return { configured: false }
+
+  try {
+    const response = await fetch(`${config.youtubePotBaseUrl.replace(/\/$/, '')}/ping`, {
+      signal: AbortSignal.timeout(5000)
+    })
+    return { configured: true, reachable: response.ok, status: response.status }
+  } catch (err) {
+    return { configured: true, reachable: false, error: err.message }
+  }
+}
+
+async function collectDiagnostics() {
+  // `--simulate /dev/null` in ra debug header mà không cần gọi mạng.
+  const [version, debugOutput, potProvider] = await Promise.all([
+    runCommand(config.ytdlpBin, ['--version']),
+    runCommand(config.ytdlpBin, ['--ignore-config', '-v', '--simulate', '--no-warnings', '/dev/null']),
+    checkPotProvider()
+  ])
+
+  return {
+    ytdlpVersion: version,
+    ytdlpBin: config.ytdlpBin,
+    jsRuntimes: pickDebugLine(debugOutput, 'JS runtimes'),
+    optionalLibraries: pickDebugLine(debugOutput, 'Optional libraries'),
+    plugins: debugOutput
+      .split('\n')
+      .filter(line => line.startsWith('[debug] ') && line.toLowerCase().includes('plugin'))
+      .map(line => line.replace('[debug] ', '')),
+    ffmpeg: pickDebugLine(debugOutput, 'exe versions'),
+    potProvider,
+    youtubePlayerClient: config.youtubePlayerClient || '(mặc định của yt-dlp)',
+    youtubeFallbackPlayerClient: config.youtubeFallbackPlayerClient,
+    cookiesFile: tools.cookiesFile ? config.ytdlpCookiesFile : null,
+    tools
+  }
 }
 
 module.exports = {

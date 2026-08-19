@@ -13,8 +13,9 @@ The app is a lightweight Node/Express server that serves the frontend and runs `
 
 ## Files
 
-- `Dockerfile`: production image with Node.js, `yt-dlp`, and `ffmpeg`.
-- `docker-compose.yml`: service definition with persistent downloads, restart policy, and localhost-only port binding.
+- `Dockerfile`: production image with Node.js, `yt-dlp` (kèm Deno + `yt-dlp-ejs` + `curl-cffi`), and `ffmpeg`.
+- `docker-entrypoint.sh`: tự cập nhật `yt-dlp` khi container khởi động.
+- `docker-compose.yml`: service definition with persistent downloads, restart policy, localhost-only port binding, và service `bgutil-provider` sinh PO token cho YouTube.
 - `src/`: backend config, routes, download manager, and small utilities.
 - `public/`: static frontend HTML, CSS, and browser JavaScript.
 - `.dockerignore`: keeps local dependencies, logs, env files, and downloads out of the image build context.
@@ -30,9 +31,16 @@ MAX_ACTIVE_JOBS=3
 JOB_TIMEOUT_MS=600000
 JOB_TTL_MS=3600000
 
-# Optional YouTube fallback settings for PO-token/client changes.
+# 1 = tự cập nhật yt-dlp mỗi lần container khởi động (mặc định).
+YTDLP_AUTO_UPDATE=1
+
+# Để trống = dùng client mặc định của yt-dlp. Chỉ set khi cần ép.
 YOUTUBE_PLAYER_CLIENT=
+YOUTUBE_FALLBACK_PLAYER_CLIENT=tv,web_safari,mweb
 YOUTUBE_PO_TOKEN=
+
+# Provider tự sinh PO token (service bgutil-provider trong docker-compose).
+YOUTUBE_POT_BASE_URL=http://bgutil-provider:4416
 ```
 
 Defaults are already set in `docker-compose.yml`, so `.env` is only needed when overriding values.
@@ -135,12 +143,44 @@ docker compose up -d
 
 ## Update yt-dlp
 
-`yt-dlp` is installed during image build. To get a newer `yt-dlp`, rebuild the image:
+Container tự chạy `pip install --upgrade` cho `yt-dlp` mỗi lần khởi động, nên chỉ cần:
+
+```bash
+docker compose restart yt-dlp-server
+```
+
+Muốn khoá phiên bản trong image thì đặt `YTDLP_AUTO_UPDATE=0` trong `.env` và rebuild:
 
 ```bash
 docker compose build --no-cache
 docker compose up -d
 ```
+
+## YouTube: JS runtime, PO token
+
+Từ 2026, `yt-dlp` bắt buộc phải có JS runtime (Deno) + gói `yt-dlp-ejs` để giải
+signature/nsig của YouTube. Image cài `yt-dlp[default,curl-cffi,deno]` nên đã đủ:
+
+- `default` → kéo theo `yt-dlp-ejs`
+- `deno` → binary Deno tại `/opt/ytdlp/bin/deno`
+- `curl-cffi` → impersonate (dùng cho Douyin/TikTok)
+
+Service `bgutil-provider` sinh PO token tự động, thay cho việc dán tay
+`YOUTUBE_PO_TOKEN` (YouTube gắn token theo từng video id nên token dán tay hết
+tác dụng rất nhanh).
+
+Kiểm tra tình trạng:
+
+```bash
+curl -s http://127.0.0.1:3001/api/diagnostics | python3 -m json.tool
+```
+
+Cần thấy:
+
+- `ytdlpVersion` gần với bản mới nhất
+- `jsRuntimes` có `deno-...`
+- `optionalLibraries` có `yt_dlp_ejs-...`
+- `potProvider.reachable` = `true`
 
 ## Stop / Restart
 
@@ -166,16 +206,26 @@ Check binary detection:
 docker compose exec yt-dlp-server yt-dlp --version
 docker compose exec yt-dlp-server ffmpeg -version
 curl http://127.0.0.1:3001/health
+curl -s http://127.0.0.1:3001/api/diagnostics | python3 -m json.tool
 ```
 
-If YouTube starts returning PO-token or 403 errors, update `yt-dlp` first by rebuilding. If needed, set:
+Nếu YouTube trả về PO-token hoặc 403, xem `/api/diagnostics` trước. Thứ tự xử lý:
+
+1. `docker compose restart yt-dlp-server` để kéo bản `yt-dlp` mới nhất.
+2. Nếu `jsRuntimes` trống → rebuild image (`docker compose build --no-cache`).
+3. Nếu `potProvider.reachable` = `false` → `docker compose up -d bgutil-provider`.
+4. Nếu vẫn bị "confirm you're not a bot" → nạp cookies YouTube từ một tài khoản
+   phụ (export ở cửa sổ ẩn danh để cookie không bị xoay vòng):
 
 ```env
-YTDLP_JS_RUNTIME=/usr/local/bin/deno
-YTDLP_COOKIES_FILE=/home/heymedia/yt-dlp-server/yt-dlp-server/cookies/douyin-cookies.txt
+YTDLP_COOKIES_FILE=/cookies/youtube-cookies.txt
+```
+
+Các biến còn lại chỉ dùng khi thật sự cần ép:
+
+```env
 YTDLP_IMPERSONATE_CLIENT=chrome
-YOUTUBE_PLAYER_CLIENT=mweb
-YOUTUBE_PO_TOKEN=mweb.gvs+TOKEN_VALUE
+YOUTUBE_PLAYER_CLIENT=tv
 ```
 
 Then restart:

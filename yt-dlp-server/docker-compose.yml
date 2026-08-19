@@ -6,6 +6,8 @@ services:
     container_name: heymedia-yt-dlp-server
     restart: unless-stopped
     init: true
+    depends_on:
+      - bgutil-provider
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3001}
@@ -14,18 +16,43 @@ services:
       MAX_ACTIVE_JOBS: ${MAX_ACTIVE_JOBS:-3}
       JOB_TIMEOUT_MS: ${JOB_TIMEOUT_MS:-600000}
       JOB_TTL_MS: ${JOB_TTL_MS:-3600000}
-      YTDLP_BIN: /usr/local/bin/yt-dlp
+      YTDLP_HOME: /opt/ytdlp
+      YTDLP_BIN: /opt/ytdlp/bin/yt-dlp
+      YTDLP_JS_RUNTIME: /opt/ytdlp/bin/deno
       FFMPEG_BIN: /usr/bin/ffmpeg
+      DENO_DIR: /tmp/deno
+      # Tự cập nhật yt-dlp mỗi lần container khởi động (đặt 0 để khoá phiên bản).
+      YTDLP_AUTO_UPDATE: ${YTDLP_AUTO_UPDATE:-1}
       YTDLP_COOKIES_FILE: ${YTDLP_COOKIES_FILE:-}
       YTDLP_IMPERSONATE_CLIENT: ${YTDLP_IMPERSONATE_CLIENT:-}
       DOUYIN_BROWSER_FALLBACK: ${DOUYIN_BROWSER_FALLBACK:-0}
+      # Để trống = dùng client mặc định của yt-dlp (khuyến nghị).
       YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-}
+      YOUTUBE_FALLBACK_PLAYER_CLIENT: ${YOUTUBE_FALLBACK_PLAYER_CLIENT:-tv,web_safari,mweb}
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
+      # Provider tự sinh PO token, thay cho việc dán tay YOUTUBE_PO_TOKEN.
+      YOUTUBE_POT_BASE_URL: ${YOUTUBE_POT_BASE_URL:-http://bgutil-provider:4416}
     ports:
       - "127.0.0.1:${PORT:-3001}:3001"
     volumes:
       - ./downloads:/downloads
       - ./cookies:/cookies:ro
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Sinh PO token cho YouTube. Không có nó, nhiều format bị YouTube chặn.
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: heymedia-bgutil-provider
+    restart: unless-stopped
+    init: true
+    expose:
+      - "4416"
     security_opt:
       - no-new-privileges:true
     logging:

@@ -11,14 +11,18 @@ const config = {
   maxActiveJobs: Number(process.env.MAX_ACTIVE_JOBS || 3),
   jobTimeoutMs: Number(process.env.JOB_TIMEOUT_MS || 10 * 60 * 1000),
   jobTtlMs: Number(process.env.JOB_TTL_MS || 60 * 60 * 1000),
-  ytdlpBin: process.env.YTDLP_BIN || resolveCommand(['/usr/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp']),
+  ytdlpBin: process.env.YTDLP_BIN || resolveCommand(['/opt/ytdlp/bin/yt-dlp', '/usr/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp']),
   ffmpegBin: process.env.FFMPEG_BIN || resolveCommand(['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', 'ffmpeg']),
-  ytdlpJsRuntime: process.env.YTDLP_JS_RUNTIME || resolveCommand(['/usr/local/bin/deno', '/home/heymedia/.deno/bin/deno', 'deno']),
+  ytdlpJsRuntime: process.env.YTDLP_JS_RUNTIME || resolveCommand(['/opt/ytdlp/bin/deno', '/usr/local/bin/deno', '/home/heymedia/.deno/bin/deno', 'deno']),
+  // Tên runtime theo đúng cú pháp `--js-runtimes NAME[:PATH]` của yt-dlp.
+  ytdlpJsRuntimeName: process.env.YTDLP_JS_RUNTIME_NAME || 'deno',
   ytdlpCookiesFile: process.env.YTDLP_COOKIES_FILE || '',
   ytdlpImpersonateClient: process.env.YTDLP_IMPERSONATE_CLIENT || '',
   douyinBrowserFallback: process.env.DOUYIN_BROWSER_FALLBACK === '1',
   youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || '',
+  youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || 'tv,web_safari,mweb',
   youtubePoToken: process.env.YOUTUBE_PO_TOKEN || '',
+  youtubePotBaseUrl: process.env.YOUTUBE_POT_BASE_URL || '',
   allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online']
 }
 
