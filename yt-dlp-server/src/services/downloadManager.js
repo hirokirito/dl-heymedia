@@ -306,6 +306,11 @@ function createDownloadManager(config, tools) {
 
       currentJob.status = 'error'
       currentJob.error = classifyDownloadError(stderrBuf, timedOut)
+      // Nói rõ đã cạn chuỗi client, tránh đọc nhầm thành lỗi của riêng video.
+      if (!timedOut && attempts && attempts.length > 1) {
+        const tried = attempts.map(item => item.client).join(', ')
+        currentJob.error += ` Đã thử hết ${attempts.length} YouTube client (${tried}).`
+      }
       currentJob.detail = stderrBuf.slice(-1200)
       cleanupJobFiles(jobId)
       console.error('yt-dlp error:', stderrBuf.slice(-1200))
