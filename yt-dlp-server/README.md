@@ -40,10 +40,11 @@ JOB_TTL_MS=3600000
 # 1 = tự cập nhật yt-dlp mỗi lần container khởi động (mặc định).
 YTDLP_AUTO_UPDATE=1
 
-# Client mặc định của yt-dlp (android_vr) bị YouTube trả 403 giữa chừng, còn
-# 'tv' trả "The page needs to be reloaded". Chỉ đổi khi YouTube lại thay đổi.
-YOUTUBE_PLAYER_CLIENT=mweb,web_safari
-YOUTUBE_FALLBACK_PLAYER_CLIENT=web
+# Client mặc định của yt-dlp (android_vr) bị YouTube trả 403 giữa chừng, 'tv'
+# trả "The page needs to be reloaded", 'web' chỉ trả storyboard với video dài.
+# web_embedded qua được cả video ngắn lẫn video 40+ phút.
+YOUTUBE_PLAYER_CLIENT=web_embedded,mweb
+YOUTUBE_FALLBACK_PLAYER_CLIENT=mweb,web_safari
 YOUTUBE_PO_TOKEN=
 
 # Provider tự sinh PO token (service bgutil-provider trong docker-compose).

@@ -20,10 +20,12 @@ const config = {
   ytdlpImpersonateClient: process.env.YTDLP_IMPERSONATE_CLIENT || '',
   douyinBrowserFallback: process.env.DOUYIN_BROWSER_FALLBACK === '1',
   // Mặc định của yt-dlp rơi vào android_vr, GVS URL của client này bị 403 giữa
-  // chừng. mweb/web_safari tải trọn vẹn nên đặt thẳng làm client chính.
-  youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || 'mweb,web_safari',
-  // Bỏ 'tv': client này trả "The page needs to be reloaded".
-  youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || 'web',
+  // chừng. web_embedded tải được cả video ngắn lẫn video dài 40+ phút, trong khi
+  // mweb chỉ được video ngắn nên xếp sau.
+  youtubePlayerClient: process.env.YOUTUBE_PLAYER_CLIENT || 'web_embedded,mweb',
+  // Bỏ 'web' và 'tv': 'web' chỉ trả storyboard (SABR-only) với video dài,
+  // 'tv' trả "The page needs to be reloaded".
+  youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || 'mweb,web_safari',
   youtubePoToken: process.env.YOUTUBE_PO_TOKEN || '',
   youtubePotBaseUrl: process.env.YOUTUBE_POT_BASE_URL || '',
   allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online']

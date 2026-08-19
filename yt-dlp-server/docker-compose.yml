@@ -31,8 +31,8 @@ services:
       YTDLP_IMPERSONATE_CLIENT: ${YTDLP_IMPERSONATE_CLIENT:-}
       DOUYIN_BROWSER_FALLBACK: ${DOUYIN_BROWSER_FALLBACK:-0}
       # Client mặc định của yt-dlp (android_vr) bị YouTube trả 403 giữa chừng.
-      YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-mweb,web_safari}
-      YOUTUBE_FALLBACK_PLAYER_CLIENT: ${YOUTUBE_FALLBACK_PLAYER_CLIENT:-web}
+      YOUTUBE_PLAYER_CLIENT: ${YOUTUBE_PLAYER_CLIENT:-web_embedded,mweb}
+      YOUTUBE_FALLBACK_PLAYER_CLIENT: ${YOUTUBE_FALLBACK_PLAYER_CLIENT:-mweb,web_safari}
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
       # Provider tự sinh PO token, thay cho việc dán tay YOUTUBE_PO_TOKEN.
       YOUTUBE_POT_BASE_URL: ${YOUTUBE_POT_BASE_URL:-http://bgutil-provider:4416}
