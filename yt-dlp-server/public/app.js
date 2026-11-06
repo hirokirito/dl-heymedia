@@ -1,22 +1,8 @@
-const PASS = 'heymedia2026'
 const API = ''
 
 let selectedFormat = 'video'
 let selectedQuality = 'best'
 let pollInterval = null
-
-function checkPin() {
-  const input = document.getElementById('pinInput')
-
-  if (input.value === PASS) {
-    localStorage.setItem('dl_auth', '1')
-    document.getElementById('pinScreen').style.display = 'none'
-    return
-  }
-
-  document.getElementById('pinError').textContent = 'Sai mật khẩu, thử lại'
-  input.value = ''
-}
 
 function selectOpt(el, format, quality, label) {
   document.querySelectorAll('.opt').forEach(option => option.classList.remove('active'))
@@ -123,14 +109,6 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;')
 }
 
-document.getElementById('pinInput').addEventListener('keydown', event => {
-  if (event.key === 'Enter') checkPin()
-})
-
 document.getElementById('urlInput').addEventListener('keydown', event => {
   if (event.key === 'Enter') startDownload()
 })
-
-if (localStorage.getItem('dl_auth') === '1') {
-  document.getElementById('pinScreen').style.display = 'none'
-}
