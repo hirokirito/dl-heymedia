@@ -170,3 +170,25 @@ test('ghi đồng thời không làm hỏng file', async () => {
   assert.equal(Object.keys(data.tools).length, 1)
   assert.equal(validateTools(data.tools), null)
 })
+
+test('tải khoá: thử lại khi lỗi và dùng khoá cũ khi làm mới thất bại', async () => {
+  let calls = 0
+  let mode = 'fail-once'
+  let clock = Date.now()
+  const flaky = async () => {
+    calls++
+    if (mode === 'fail-once' && calls === 1) throw new Error('timeout')
+    if (mode === 'down') throw new Error('timeout')
+    return { ok: true, json: async () => ({ keys: [jwk] }) }
+  }
+  const v = createAccessVerifier({ teamDomain: TEAM, audience: AUD, fetchImpl: flaky, now: () => clock })
+  const token = sign({})
+  assert.equal((await v.verify(token)).email, 'sangphuoc.it@gmail.com')
+  assert.equal(calls, 2, 'lần đầu lỗi, lần hai thành công')
+
+  mode = 'down'
+  clock += 2 * 60 * 60 * 1000 // quá TTL, buộc làm mới
+  const later = sign({ iat: Math.floor(clock / 1000), nbf: Math.floor(clock / 1000), exp: Math.floor(clock / 1000) + 3600 })
+  assert.equal((await v.verify(later)).email, 'sangphuoc.it@gmail.com', 'mạng lỗi nhưng còn khoá cũ')
+  assert.ok(calls >= 4, 'đã thử làm mới (2 lần) trước khi dùng khoá cũ')
+})

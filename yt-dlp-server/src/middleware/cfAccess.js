@@ -21,22 +21,55 @@ function createAccessVerifier({ teamDomain, audience, fetchImpl = fetch, now = (
   let cache = { keys: new Map(), fetchedAt: 0 }
   let inflight = null
 
-  async function loadKeys(force = false) {
-    if (!force && cache.keys.size && now() - cache.fetchedAt < CERTS_TTL_MS) return cache.keys
-    if (!inflight) {
-      inflight = (async () => {
-        const res = await fetchImpl(certsUrl, { signal: AbortSignal.timeout(5000) })
+  async function fetchKeys() {
+    let lastError
+    // Server văn phòng đôi khi chậm lần gọi đầu (DNS/TLS): thử 2 lần, mỗi lần tối đa 10 giây.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetchImpl(certsUrl, { signal: AbortSignal.timeout(10000) })
         if (!res.ok) throw new Error(`Không tải được khoá Access (${res.status})`)
         const body = await res.json()
         const keys = new Map()
         for (const jwk of body.keys || []) {
           if (jwk.kid && jwk.kty === 'RSA') keys.set(jwk.kid, crypto.createPublicKey({ key: jwk, format: 'jwk' }))
         }
-        cache = { keys, fetchedAt: now() }
+        if (!keys.size) throw new Error('Danh sách khoá Access rỗng')
         return keys
-      })().finally(() => { inflight = null })
+      } catch (err) {
+        lastError = err
+        if (attempt < 2) console.warn(`[cf-access] tải khoá lỗi (${err.message}), thử lại`)
+      }
+    }
+    throw lastError
+  }
+
+  async function loadKeys(force = false) {
+    if (!force && cache.keys.size && now() - cache.fetchedAt < CERTS_TTL_MS) return cache.keys
+    if (!inflight) {
+      inflight = fetchKeys()
+        .then(keys => {
+          cache = { keys, fetchedAt: now() }
+          return keys
+        })
+        .catch(err => {
+          // Làm mới thất bại nhưng còn khoá cũ: dùng tạm khoá cũ thay vì chặn admin.
+          if (cache.keys.size) {
+            console.warn(`[cf-access] không làm mới được khoá, dùng khoá cũ: ${err.message}`)
+            return cache.keys
+          }
+          throw err
+        })
+        .finally(() => { inflight = null })
     }
     return inflight
+  }
+
+  // Tải khoá ngay khi server khởi động để lần đăng nhập admin đầu tiên không phải chờ.
+  function prefetch() {
+    loadKeys().then(
+      keys => console.log(`[cf-access] đã tải ${keys.size} khoá công khai`),
+      err => console.warn(`[cf-access] chưa tải được khoá lúc khởi động: ${err.message}`)
+    )
   }
 
   async function verify(token) {
@@ -77,7 +110,7 @@ function createAccessVerifier({ teamDomain, audience, fetchImpl = fetch, now = (
     return { email: payload.email.toLowerCase(), payload }
   }
 
-  return { verify }
+  return { verify, prefetch }
 }
 
 // Middleware cho /api/admin/*: thiếu cấu hình thì ĐÓNG (503), không bao giờ mở cửa mặc định.
@@ -85,6 +118,7 @@ function createRequireAdmin({ teamDomain, audience, adminEmails, verifier }) {
   const allowed = new Set(adminEmails.map(email => email.trim().toLowerCase()).filter(Boolean))
   const configured = Boolean(teamDomain && audience && allowed.size)
   const accessVerifier = configured ? verifier || createAccessVerifier({ teamDomain, audience }) : null
+  if (accessVerifier && !verifier && process.env.NODE_ENV !== 'test') accessVerifier.prefetch()
 
   return function requireAdmin(req, res, next) {
     if (!configured) {

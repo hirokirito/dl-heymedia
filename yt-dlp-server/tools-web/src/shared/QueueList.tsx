@@ -76,7 +76,6 @@ export function QueueList<R>({ items, selectedId, onSelect, onCancel, onRemove, 
             <div className="queue-side">
               {info?.verdict && <VerdictChip verdict={info.verdict} />}
               {item.status === 'error' && <VerdictChip verdict="fail" />}
-              {item.status === 'cancelled' && <span className="muted small">Đã huỷ</span>}
               {(item.status === 'running' || item.status === 'queued') ? (
                 <button type="button" className="btn btn-ghost" onClick={() => onCancel(item.id)}>
                   <Icon name="x" size={16} />Huỷ

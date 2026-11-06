@@ -155,6 +155,15 @@ Phân quyền quản trị (2 lớp, độc lập):
 
 Thêm admin: thêm email vào policy của "Hey Tools Admin" **và** `ADMIN_EMAILS` trong `.env`, rồi tạo lại container.
 
+### Video Checker (`/tools/video-checker`)
+
+- Thông số: `mediainfo.js` 0.3.8 (BSD-2-Clause, wasm ~2,6 MB, chỉ tải khi có file). Trường không có dữ liệu để `null`, hiển thị "Không có dữ liệu".
+- Giải mã âm thanh + thumbnail: `mediabunny` 1.61.6 (MPL-2.0, dùng nguyên bản, không sửa mã) trên WebCodecs. PCM (ProRes/MOV) giải mã bằng JS.
+- Loudness: `tools-web/src/tools/video-checker/loudness.ts`, BS.1770-4 dạng luồng trong Web Worker. Integrated LUFS, sample peak (dBFS) và true peak (dBTP, nội suy 4× theo Annex 2). Lệch ≤ 0,05 LU so với `ffmpeg ebur128` trên bộ file mẫu.
+- Preset: sửa trong `tools-web/src/tools/video-checker/presets.ts`.
+- Giới hạn: trình duyệt không giải mã được codec nào (vd. H.265 trên Chrome không có phần cứng, ProRes) thì vẫn có thông số, nhưng không có thumbnail/LUFS và báo rõ lý do.
+- Test loudness: `cd tools-web && npm test` (EBU Tech 3341 case 1–3, im lặng, 32/44,1/96 kHz, true peak).
+
 Phát triển trên máy:
 
 ```bash
