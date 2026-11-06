@@ -9,17 +9,29 @@
 </head>
 <body>
 
+<!-- Thanh điều hướng dùng chung với Hey Tools (/tools). -->
+<header class="appbar">
+  <a class="brand appbar-brand" href="/">
+    <span class="mark appbar-mark" aria-hidden="true">↓</span>
+    <span class="appbar-brand-text">
+      <span class="brand-title">Hey Media Downloader</span>
+      <span class="brand-subtitle">Hey Media · nội bộ</span>
+    </span>
+  </a>
+  <nav class="appbar-nav" aria-label="Chuyển trang">
+    <a href="/" aria-current="page">Downloader</a>
+    <a href="/tools/">Hey Tools</a>
+  </nav>
+  <div class="appbar-right">
+    <span class="status-pill"><span class="dot"></span><span>dl.heymedia.online</span></span>
+    <a class="appbar-admin" href="/tools/admin">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+      Quản trị
+    </a>
+  </div>
+</header>
+
 <main class="shell">
-  <header class="topbar">
-    <div class="brand">
-      <div class="mark">↓</div>
-      <div>
-        <p class="brand-title">Hey Media Downloader</p>
-        <span class="brand-subtitle">Internal creator tool</span>
-      </div>
-    </div>
-    <div class="status-pill"><span class="dot"></span><span>dl.heymedia.online</span></div>
-  </header>
 
   <section class="main">
     <div class="workspace">
