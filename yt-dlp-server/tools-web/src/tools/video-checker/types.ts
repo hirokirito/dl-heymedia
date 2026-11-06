@@ -64,7 +64,7 @@ export type Analysis = {
 
 // Worker ↔ trang
 // forceFallback: chế độ kiểm tra (?vc-fallback=1) — bỏ qua WebCodecs âm thanh để thử đường dự phòng Web Audio.
-export type WorkerRequest = { file: File; wasmUrl: string; forceFallback?: boolean }
+export type WorkerRequest = { file: File; wasmUrl: string; forceFallback?: boolean; skipThumbs?: boolean }
 export type WorkerMessage =
   | { type: 'progress'; progress: number; stage: string }
   | { type: 'result'; result: Analysis }

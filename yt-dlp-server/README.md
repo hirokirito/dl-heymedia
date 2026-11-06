@@ -164,6 +164,15 @@ Thêm admin: thêm email vào policy của "Hey Tools Admin" **và** `ADMIN_EMAI
 - Giới hạn: trình duyệt không giải mã được codec nào (vd. H.265 trên Chrome không có phần cứng, ProRes) thì vẫn có thông số, nhưng không có thumbnail/LUFS và báo rõ lý do.
 - Test loudness: `cd tools-web && npm test` (EBU Tech 3341 case 1–3, im lặng, 32/44,1/96 kHz, true peak).
 
+### Đợt 1 (Bước 3)
+
+| Tool | id | Cách làm |
+| --- | --- | --- |
+| Trích frame | `frame-extract` | mediabunny `CanvasSink`, kích thước gốc (đã xoay), JPG/PNG, tải lẻ hoặc ZIP. Tối đa 300 khung/lần. |
+| Cắt video nhanh | `video-trim` | `Conversion` với `copy: { mode: 'forced' }`: chỉ chép packet, không mã hoá lại. MP4/MOV dùng edit list nên phát đúng điểm đầu dù dữ liệu bắt đầu từ keyframe; WebM/MKV bắt đầu ở keyframe. File > 512 MB trên Chrome/Edge ghi thẳng xuống đĩa (hộp thoại Lưu thành). |
+| Tách âm thanh | `audio-extract` | Chép nguyên track (AAC → .m4a, MP3 → .mp3, PCM → .wav, Opus → .ogg, FLAC → .flac) hoặc giải mã ra WAV PCM 16-bit. |
+| Kiểm tra audio | `audio-check` | Dùng chung worker phân tích của Video Checker (bỏ thumbnail). Mục tiêu −14 / −16 / −23 LUFS, gợi ý số dB cần chỉnh và cảnh báo cần limiter. |
+
 Phát triển trên máy:
 
 ```bash

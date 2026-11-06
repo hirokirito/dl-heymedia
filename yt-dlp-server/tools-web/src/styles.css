@@ -286,3 +286,37 @@ h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
 .vc-preset > span { display: flex; flex-direction: column; gap: 2px; }
 .vc-preset-name { font-size: 14px; font-weight: 600; }
 .vc-preset:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Dùng chung cho các tool đợt 1 */
+.row-between { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.stack-sm { display: flex; flex-direction: column; gap: 6px; }
+.preview { display: flex; flex-direction: column; gap: 6px; }
+.preview video { width: 100%; max-height: 60vh; border-radius: 12px; background: #000; }
+.preview-empty { padding: 28px 16px; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 14px; text-align: center; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--soft); font-weight: 500; }
+.field input, .field textarea {
+  min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); font: inherit; font-size: 14px; resize: vertical;
+}
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent-line); }
+.field-inline { display: flex; gap: 8px; align-items: center; }
+.field-inline input { flex: 1; min-width: 0; }
+.field-inline .btn { white-space: nowrap; font-size: 13px; }
+.field-row { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+.field-row label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.field-row input { accent-color: var(--accent); }
+.field-legend { font-size: 13px; color: var(--soft); font-weight: 500; margin-bottom: 4px; width: 100%; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.seg-btn { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--soft); font-size: 13px; font-weight: 500; cursor: pointer; }
+.seg-btn[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--line-strong); font-weight: 600; }
+.frame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.frame { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.frame img { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; background: #000; border-radius: 10px; border: 1px solid var(--line); }
+.frame figcaption { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
+.link-btn { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; min-height: 24px; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.data-table th { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.data-table tr:last-child td { border-bottom: 0; }
+.cell-name { white-space: normal !important; min-width: 180px; max-width: 280px; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 2px; }

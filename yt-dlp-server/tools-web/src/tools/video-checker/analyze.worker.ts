@@ -105,7 +105,7 @@ async function measureLoudness(track: InputAudioTrack, durationSec: number | nul
   return { status: 'ok', decodedBy: isPcm ? 'pcm' : 'webcodecs', ...meter.result() }
 }
 
-async function analyze({ file, wasmUrl, forceFallback }: WorkerRequest): Promise<Analysis> {
+async function analyze({ file, wasmUrl, forceFallback, skipThumbs }: WorkerRequest): Promise<Analysis> {
   const t0 = performance.now()
   progress(-1, 'Đang đọc thông số', true)
   let specs
@@ -135,14 +135,14 @@ async function analyze({ file, wasmUrl, forceFallback }: WorkerRequest): Promise
     const videoTrack = await input.getPrimaryVideoTrack()
     const audioTrack = await input.getPrimaryAudioTrack()
 
-    if (videoTrack) {
+    if (videoTrack && !skipThumbs) {
       progress(-1, 'Đang tạo thumbnail', true)
       try {
         ;({ thumbs, note: thumbsNote } = await makeThumbs(videoTrack, specs.file.durationSec))
       } catch (err) {
         thumbsNote = `Không tạo được thumbnail: ${err instanceof Error ? err.message : 'lỗi không rõ'}`
       }
-    } else if (specs.video) {
+    } else if (specs.video && !skipThumbs) {
       thumbsNote = 'Không mở được track video để lấy khung hình.'
     }
 

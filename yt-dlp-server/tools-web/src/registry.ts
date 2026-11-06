@@ -32,6 +32,38 @@ export const TOOLS: ToolDef[] = [
     description: 'Thông số, loudness, đối chiếu preset',
     icon: 'film',
     load: () => import('./tools/video-checker/VideoChecker')
+  },
+  {
+    id: 'frame-extract',
+    name: 'Trích frame',
+    group: 'video',
+    description: 'Xuất khung hình PNG/JPG theo mốc thời gian',
+    icon: 'camera',
+    load: () => import('./tools/frame-extract/FrameExtract')
+  },
+  {
+    id: 'video-trim',
+    name: 'Cắt video nhanh',
+    group: 'video',
+    description: 'Cắt đoạn, không mã hoá lại',
+    icon: 'scissors',
+    load: () => import('./tools/video-trim/VideoTrim')
+  },
+  {
+    id: 'audio-extract',
+    name: 'Tách âm thanh',
+    group: 'video',
+    description: 'Lấy track âm thanh ra file riêng',
+    icon: 'music',
+    load: () => import('./tools/audio-extract/AudioExtract')
+  },
+  {
+    id: 'audio-check',
+    name: 'Kiểm tra audio',
+    group: 'audio',
+    description: 'Sample rate, số kênh, loudness, peak',
+    icon: 'wave',
+    load: () => import('./tools/audio-check/AudioCheck')
   }
 ]
 
