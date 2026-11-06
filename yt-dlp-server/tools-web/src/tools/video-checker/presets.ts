@@ -41,7 +41,7 @@ export function evaluate(a: Analysis, preset: Preset): { verdict: Verdict | null
     const l = a.loudness
     if (l.status === 'no-audio') checks.push({ verdict: 'warn', text: 'File không có âm thanh' })
     else if (l.status !== 'ok') checks.push({ verdict: 'unknown', text: `Chưa đo được loudness: ${l.reason}` })
-    else if (l.integratedLufs === null) checks.push({ verdict: 'warn', text: 'Âm thanh im lặng hoặc quá nhỏ (dưới −70 LUFS)' })
+    else if (l.integratedLufs === null) checks.push({ verdict: 'warn', text: 'Âm thanh im lặng hoặc quá nhỏ (dưới −70 LUFS). Video tải từ mạng xã hội thường bị nền tảng gỡ nhạc vì bản quyền.' })
     else if (l.integratedLufs >= lo && l.integratedLufs <= hi) checks.push({ verdict: 'pass', text: `Loudness ${fmt(l.integratedLufs)} LUFS, nằm trong ${fmt(lo, 0)} … ${fmt(hi, 0)} LUFS` })
     else checks.push({ verdict: 'warn', text: `Loudness ${fmt(l.integratedLufs)} LUFS, ${l.integratedLufs < lo ? 'thấp hơn' : 'cao hơn'} ngưỡng ${fmt(l.integratedLufs < lo ? lo : hi, 0)} LUFS` })
 
