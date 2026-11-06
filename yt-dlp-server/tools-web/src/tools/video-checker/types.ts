@@ -46,7 +46,7 @@ export type AudioSpec = {
 export type Thumb = { label: string; timeSec: number; blob: Blob | null }
 
 export type LoudnessInfo =
-  | ({ status: 'ok'; decodedBy: 'webcodecs' | 'pcm' } & LoudnessResult)
+  | ({ status: 'ok'; decodedBy: 'webcodecs' | 'pcm' | 'webaudio' } & LoudnessResult)
   | { status: 'no-audio' }
   | { status: 'unsupported'; reason: string }
   | { status: 'error'; reason: string }
@@ -63,7 +63,8 @@ export type Analysis = {
 }
 
 // Worker ↔ trang
-export type WorkerRequest = { file: File; wasmUrl: string }
+// forceFallback: chế độ kiểm tra (?vc-fallback=1) — bỏ qua WebCodecs âm thanh để thử đường dự phòng Web Audio.
+export type WorkerRequest = { file: File; wasmUrl: string; forceFallback?: boolean }
 export type WorkerMessage =
   | { type: 'progress'; progress: number; stage: string }
   | { type: 'result'; result: Analysis }

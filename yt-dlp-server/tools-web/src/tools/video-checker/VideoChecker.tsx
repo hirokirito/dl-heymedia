@@ -8,6 +8,7 @@ import { QueueList, VerdictChip } from '../../shared/QueueList'
 import { useFileQueue, type ProcessContext, type QueueItem } from '../../shared/useFileQueue'
 import { evaluate, PRESETS, type Preset } from './presets'
 import type { Analysis, WorkerMessage } from './types'
+import { canUseFallback, measureWithWebAudio } from './webAudioFallback'
 
 const NA = 'Không có dữ liệu'
 const PRESET_KEY = 'heytools:video-checker:preset'
@@ -23,6 +24,27 @@ function duration(sec: number | null): string | null {
   const s = sec % 60
   const ss = s.toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2, minimumIntegerDigits: 2 })
   return `${h ? `${String(h).padStart(2, '0')}:` : ''}${String(m).padStart(2, '0')}:${ss}`
+}
+
+// Phân tích trong worker; nếu WebCodecs từ chối giải mã âm thanh thì thử lại bằng Web Audio trên trang.
+async function analyzeFile(file: File, ctx: ProcessContext): Promise<Analysis> {
+  const result = await analyzeInWorker(file, ctx)
+  const fallback = canUseFallback(result, file)
+  if (!fallback.ok) {
+    if (fallback.reason && (result.loudness.status === 'unsupported' || result.loudness.status === 'error')) {
+      result.notes.push(`Không thử giải mã dự phòng bằng Web Audio vì ${fallback.reason}.`)
+    }
+    return result
+  }
+  const firstReason = result.loudness.status === 'unsupported' || result.loudness.status === 'error' ? result.loudness.reason : ''
+  try {
+    result.loudness = await measureWithWebAudio(file, result, ctx)
+    result.notes.push(`Âm thanh được giải mã bằng Web Audio (dự phòng) vì: ${firstReason}`)
+  } catch (err) {
+    if (ctx.signal.aborted) throw err
+    result.loudness = { status: 'error', reason: `${firstReason} Thử Web Audio cũng không giải mã được (${err instanceof Error ? err.message : 'lỗi'}).` }
+  }
+  return result
 }
 
 // Mỗi file chạy trong worker riêng; huỷ = terminate, dừng ngay cả khi đang giải mã.
@@ -48,7 +70,8 @@ function analyzeInWorker(file: File, { signal, onProgress }: ProcessContext): Pr
       finish()
       reject(new Error(event.message || 'Worker gặp lỗi'))
     }
-    worker.postMessage({ file, wasmUrl: new URL(wasmAsset, window.location.href).href })
+    const forceFallback = new URLSearchParams(window.location.search).get('vc-fallback') === '1'
+    worker.postMessage({ file, wasmUrl: new URL(wasmAsset, window.location.href).href, forceFallback })
   })
 }
 
@@ -220,7 +243,7 @@ function textSummary(item: QueueItem<Analysis>, preset: Preset): string {
 }
 
 export default function VideoChecker() {
-  const process = useCallback(analyzeInWorker, [])
+  const process = useCallback(analyzeFile, [])
   const queue = useFileQueue(process, { maxFiles: 10 })
   const [presetId, setPresetId] = useState(readPreset)
   const [selectedId, setSelectedId] = useState<string | null>(null)

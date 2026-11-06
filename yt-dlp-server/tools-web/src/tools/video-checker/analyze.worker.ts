@@ -24,6 +24,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
+// Lỗi WebCodecs là tiếng Anh kỹ thuật; đổi sang câu dễ hiểu, giữ tên lỗi gốc trong ngoặc để tra cứu.
+function friendlyDecodeError(err: unknown, codec: string | null): string {
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+  if (/unsupported configuration|isConfigSupported|NotSupportedError/i.test(raw)) {
+    return `Bộ giải mã của trình duyệt từ chối âm thanh ${codec ?? ''} trong file này (${err instanceof Error ? err.name : 'lỗi'}).`.replace('  ', ' ')
+  }
+  return `Lỗi khi giải mã âm thanh: ${raw}`
+}
+
 async function readSpecs(file: File, wasmUrl: string) {
   const mediainfo = await mediaInfoFactory({ format: 'object', locateFile: () => wasmUrl })
   try {
@@ -65,9 +74,9 @@ async function makeThumbs(track: InputVideoTrack, durationSec: number | null): P
   return { thumbs, note: thumbs.every(t => !t.blob) ? 'Không lấy được khung hình nào.' : null }
 }
 
-async function measureLoudness(track: InputAudioTrack, durationSec: number | null): Promise<LoudnessInfo> {
+async function measureLoudness(track: InputAudioTrack, durationSec: number | null, codecName: string | null): Promise<LoudnessInfo> {
   if (!(await track.canDecode())) {
-    return { status: 'unsupported', reason: `Trình duyệt này không giải mã được âm thanh ${track.codec ?? 'không rõ codec'}.` }
+    return { status: 'unsupported', reason: `Bộ giải mã WebCodecs của trình duyệt không hỗ trợ âm thanh ${codecName ?? track.codec ?? 'không rõ codec'}.` }
   }
   const start = await track.getFirstTimestamp()
   const duration = durationSec ?? (await track.computeDuration())
@@ -96,7 +105,7 @@ async function measureLoudness(track: InputAudioTrack, durationSec: number | nul
   return { status: 'ok', decodedBy: isPcm ? 'pcm' : 'webcodecs', ...meter.result() }
 }
 
-async function analyze({ file, wasmUrl }: WorkerRequest): Promise<Analysis> {
+async function analyze({ file, wasmUrl, forceFallback }: WorkerRequest): Promise<Analysis> {
   const t0 = performance.now()
   progress(-1, 'Đang đọc thông số', true)
   let specs
@@ -137,12 +146,14 @@ async function analyze({ file, wasmUrl }: WorkerRequest): Promise<Analysis> {
       thumbsNote = 'Không mở được track video để lấy khung hình.'
     }
 
-    if (audioTrack) {
+    if (audioTrack && forceFallback) {
+      loudness = { status: 'unsupported', reason: 'Chế độ kiểm tra: bỏ qua WebCodecs.' }
+    } else if (audioTrack) {
       progress(0, 'Đo loudness 0%', true)
       try {
-        loudness = await measureLoudness(audioTrack, specs.file.durationSec)
+        loudness = await measureLoudness(audioTrack, specs.file.durationSec, specs.audio?.codec ?? null)
       } catch (err) {
-        loudness = { status: 'error', reason: err instanceof Error ? err.message : 'Lỗi giải mã âm thanh' }
+        loudness = { status: 'error', reason: friendlyDecodeError(err, specs.audio?.codec ?? audioTrack.codec) }
       }
     } else if (specs.audio) {
       loudness = { status: 'unsupported', reason: 'Không mở được track âm thanh để giải mã.' }
