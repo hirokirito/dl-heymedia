@@ -38,12 +38,18 @@ services:
       YOUTUBE_PO_TOKEN: ${YOUTUBE_PO_TOKEN:-}
       # Provider tự sinh PO token, thay cho việc dán tay YOUTUBE_PO_TOKEN.
       YOUTUBE_POT_BASE_URL: ${YOUTUBE_POT_BASE_URL:-http://bgutil-provider:4416}
+      # Hey Tools — trang quản trị /tools/admin. Thiếu một biến thì quản trị bị khoá (503).
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     ports:
       # BIND_ADDR: đổi thành 0.0.0.0 nếu cần client LAN gọi trực tiếp.
       - "${BIND_ADDR:-127.0.0.1}:${HOST_PORT:-3001}:3001"
     volumes:
       - ./downloads:/downloads
       - ./cookies:/cookies:ro
+      # Cấu hình bật/tắt Hey Tools; tạo thư mục trước khi up (giống ./downloads).
+      - ./data:/app/data
     security_opt:
       - no-new-privileges:true
     logging:

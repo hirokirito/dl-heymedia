@@ -33,7 +33,14 @@ const config = {
   youtubeFallbackPlayerClient: process.env.YOUTUBE_FALLBACK_PLAYER_CLIENT || '',
   youtubePoToken: process.env.YOUTUBE_PO_TOKEN || '',
   youtubePotBaseUrl: process.env.YOUTUBE_POT_BASE_URL || '',
-  allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online']
+  allowedOrigins: ['https://heymedia.online', 'https://dl.heymedia.online'],
+  // Hey Tools (/tools): app tĩnh build từ tools-web/, cấu hình bật/tắt lưu trong volume data/.
+  toolsDistDir: process.env.TOOLS_DIST_DIR || path.join(rootDir, 'tools-web', 'dist'),
+  toolsConfigFile: process.env.TOOLS_CONFIG_FILE || path.join(rootDir, 'data', 'tools-config.json'),
+  // Trang quản trị chỉ mở khi đủ cả ba biến; thiếu một biến là /api/admin/* trả 503.
+  cfAccessTeamDomain: (process.env.CF_ACCESS_TEAM_DOMAIN || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, ''),
+  cfAccessAud: (process.env.CF_ACCESS_AUD || '').trim(),
+  adminEmails: (process.env.ADMIN_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean)
 }
 
 module.exports = config

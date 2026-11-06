@@ -8,3 +8,8 @@ downloads
 .env
 .env.*
 README.md
+tools-web/node_modules
+tools-web/dist
+data
+test
+cookies

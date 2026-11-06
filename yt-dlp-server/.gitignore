@@ -6,3 +6,7 @@ cookies/
 *.log
 npm-debug.log*
 .DS_Store
+!.env.example
+data/
+tools-web/node_modules/
+tools-web/dist/

@@ -132,6 +132,37 @@ The container mounts this folder to:
 
 The app still deletes completed files after users download them and cleans old job files by TTL, but the folder persists across container restarts.
 
+## Hey Tools (`/tools`)
+
+Bộ công cụ xử lý file chạy **trên trình duyệt** (file không tải lên server), cùng container với downloader.
+
+- Mã nguồn: `tools-web/` (Vite + React + TypeScript). Docker build ra `tools-web/dist`, Express phục vụ tại `/tools`.
+- Thêm tool: thêm một mục trong `tools-web/src/registry.ts` (`id`, tên, nhóm, `load: () => import(...)`). Mỗi tool là một chunk lazy riêng. **Tool mới mặc định tắt** cho tới khi admin bật.
+- Cấu hình bật/tắt: `data/tools-config.json` (volume `./data:/app/data`, giữ qua rebuild). Tool không có trong file = tắt. File hỏng = tắt hết.
+
+API:
+
+| Route | Quyền | Ghi chú |
+| --- | --- | --- |
+| `GET /api/tools-config` | công khai | `{ "enabled": ["video-checker"] }` |
+| `GET /api/admin/tools-config` | admin | cấu hình đầy đủ + người sửa cuối |
+| `PUT /api/admin/tools-config` | admin | body `{ "tools": { "<id>": true\|false } }`, ghi file atomic |
+
+Phân quyền quản trị (2 lớp, độc lập):
+
+1. Cloudflare Access: ứng dụng **"Hey Tools Admin"** bảo vệ `dl.heymedia.online/tools/admin` và `dl.heymedia.online/api/admin`, chỉ policy **Allow theo email**, không Bypass theo IP. Ứng dụng này cụ thể hơn ứng dụng "Hey Media Downloader" nên được ưu tiên.
+2. Server tự xác thực JWT trong header `Cf-Access-Jwt-Assertion` (RS256, khoá công khai của team, đúng `aud`/`iss`, còn hạn) rồi so email với `ADMIN_EMAILS`. Không tin header email. Thiếu `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` hoặc `ADMIN_EMAILS` → `/api/admin/*` trả 503.
+
+Thêm admin: thêm email vào policy của "Hey Tools Admin" **và** `ADMIN_EMAILS` trong `.env`, rồi tạo lại container.
+
+Phát triển trên máy:
+
+```bash
+npm start                      # server ở :3001
+cd tools-web && npm ci && npm run dev   # Vite ở :5173, proxy /api → :3001
+npm test                       # test server (routing /tools, phân quyền, file cấu hình)
+```
+
 ## Cloudflare Tunnel
 
 The compose file binds the app to localhost only:

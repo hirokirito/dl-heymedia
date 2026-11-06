@@ -1,3 +1,12 @@
+# --- Hey Tools: build app tĩnh tools-web/ ---
+FROM node:22-bookworm-slim AS tools-web
+WORKDIR /build
+COPY tools-web/package.json tools-web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY tools-web/ ./
+RUN npm run build
+
+# --- Server downloader + Hey Tools ---
 FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production \
@@ -21,12 +30,17 @@ RUN apt-get update \
     python3 \
     python3-venv \
   && python3 -m venv "$YTDLP_HOME" \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# Đổi YTDLP_CACHE_BUST (vd. --build-arg YTDLP_CACHE_BUST=$(date +%s)) để build lấy yt-dlp mới nhất
+# thay vì dùng lại layer cũ; nhờ vậy entrypoint không phải tải bản mới lúc khởi động (từng mất ~4 phút).
+ARG YTDLP_CACHE_BUST=""
+RUN echo "yt-dlp cache bust: ${YTDLP_CACHE_BUST:-none}" \
   && "$YTDLP_HOME/bin/pip" install --no-cache-dir --upgrade pip \
   && "$YTDLP_HOME/bin/pip" install --no-cache-dir --upgrade \
     "yt-dlp[default,curl-cffi,deno]" \
-    bgutil-ytdlp-pot-provider \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
+    bgutil-ytdlp-pot-provider
 
 WORKDIR /app
 
@@ -35,10 +49,11 @@ RUN npm ci --omit=dev --ignore-scripts
 
 COPY src ./src
 COPY public ./public
+COPY --from=tools-web /build/dist ./tools-web/dist
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-  && mkdir -p /downloads /tmp/deno \
+  && mkdir -p /downloads /tmp/deno /app/data \
   && chown -R node:node /app /downloads /tmp/deno "$YTDLP_HOME"
 
 USER node

@@ -7,6 +7,7 @@ const { createCorsMiddleware } = require('./middleware/cors')
 const { createDownloadManager } = require('./services/downloadManager')
 const { isAllowedMediaUrl } = require('./utils/platforms')
 const { commandExists } = require('./utils/tools')
+const { mountHeyTools } = require('./routes/heyTools')
 
 const tools = {
   ytdlp: commandExists(config.ytdlpBin),
@@ -22,7 +23,7 @@ if (config.ytdlpCookiesFile && !tools.cookiesFile) {
 
 const downloadManager = createDownloadManager(config, tools)
 
-function createApp() {
+function createApp(options = {}) {
   const app = express()
   const indexFile = path.join(config.publicDir, 'index.html')
 
@@ -95,6 +96,9 @@ function createApp() {
     stream.on('error', () => res.status(500).end())
   })
   console.log('[routes] GET /api/download/:jobId/file')
+
+  // Hey Tools phải mount trước "/" và fallback của downloader bên dưới.
+  mountHeyTools(app, config, options.heyTools)
 
   app.get('/', (req, res) => {
     res.sendFile(indexFile)
