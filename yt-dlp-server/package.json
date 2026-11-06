@@ -12,5 +12,8 @@
   "description": "",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "overrides": {
+    "qs": "6.16.1"
   }
 }
